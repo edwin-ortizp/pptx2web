@@ -1,0 +1,15 @@
+{
+  "name": "default",
+  "description": "Sala de proyección: chrome grafito oscuro, acento ámbar",
+  "colors": {
+    "--bg": "#101113",
+    "--bg-deep": "#0a0b0c",
+    "--panel": "#17181b",
+    "--panel-2": "#1d1f23",
+    "--line": "#2a2d32",
+    "--ink": "#e9e7e2",
+    "--muted": "#97948c",
+    "--accent": "#e3a23c",
+    "--accent-ink": "#1a1408"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8742", "--directory", "out/demo-web"],
+      "port": 8742
+    },
+    {
+      "name": "big300-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8743", "--directory", "out/big300-web"],
+      "port": 8743
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "theme": "certmind",
+  "course": {
+    "title": "ITIL 4 Fundamentos",
+    "logo": "logo.png"
+  },
+  "layout": {
+    "sidebarSide": "left",
+    "panels": ["sections", "thumbnails"],
+    "defaultPanel": "sections"
+  },
+  "sections": [
+    { "title": "Introducción", "from": 1, "to": 2 },
+    { "title": "¿Qué es ITIL 4?", "from": 3, "to": 4 },
+    { "title": "Cierre y conclusiones", "from": 5, "to": 6 }
+  ]
+}

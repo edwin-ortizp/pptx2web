@@ -1,0 +1,20 @@
+{
+  "name": "certmind",
+  "description": "CertMind: panel negro, acento magenta. PROVISIONAL — sustituir por los colores corporativos definitivos.",
+  "colors": {
+    "--bg": "#1c1c1e",
+    "--bg-deep": "#000000",
+    "--panel": "#000000",
+    "--panel-2": "#1a1a1c",
+    "--line": "#2e2e30",
+    "--ink": "#ffffff",
+    "--muted": "#9a9a9e",
+    "--accent": "#e91e8c",
+    "--accent-ink": "#ffffff"
+  },
+  "layout": {
+    "sidebarSide": "left",
+    "panels": ["sections", "thumbnails"],
+    "defaultPanel": "sections"
+  }
+}

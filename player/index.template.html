@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!-- pptx2web · buildId: {{BUILD_ID}} -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache">
+<meta name="robots" content="noindex">
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="{{PLAYER_CSS}}">
+</head>
+<body>
+<script type="application/json" id="manifest">{{MANIFEST_INLINE}}</script>
+<script type="application/json" id="config">{{CONFIG_INLINE}}</script>
+
+<div id="app" class="app">
+
+  <!-- Sidebar: secciones (breadcrumbs) y/o miniaturas -->
+  <aside id="sidebar" class="sidebar" aria-label="Navegación del curso">
+    <header class="sidebar-head">
+      <img id="course-logo" class="course-logo" alt="" hidden draggable="false">
+      <div class="sidebar-head-text">
+        <h1 class="deck-title" id="deck-title"></h1>
+        <span class="deck-count" id="deck-count"></span>
+      </div>
+    </header>
+    <div id="panel-tabs" class="panel-tabs" hidden>
+      <button id="tab-sections" class="panel-tab" data-panel="sections">Contenido</button>
+      <button id="tab-thumbnails" class="panel-tab" data-panel="thumbnails">Láminas</button>
+    </div>
+    <nav id="section-list" class="section-list" hidden aria-label="Secciones"></nav>
+    <ol id="thumb-list" class="thumb-list"></ol>
+    <footer class="sidebar-foot">
+      <div class="sidebar-foot-bar"><div id="global-fill" class="sidebar-foot-fill"></div></div>
+      <span id="global-progress" class="sidebar-foot-text"></span>
+    </footer>
+  </aside>
+
+  <!-- Zona principal -->
+  <main class="main">
+    <section id="stage" class="stage" aria-label="Diapositiva actual">
+      <div id="slide-box" class="slide-box">
+        <img id="buf-a" class="slide-img" alt="" draggable="false">
+        <img id="buf-b" class="slide-img" alt="" draggable="false">
+        <div id="media-layer" class="media-layer"></div>
+        <div id="link-layer" class="link-layer"></div>
+        <div id="quiz-layer" class="quiz-layer" hidden></div>
+      </div>
+      <button id="nav-prev" class="edge-nav edge-prev" aria-label="Anterior">&#8249;</button>
+      <button id="nav-next" class="edge-nav edge-next" aria-label="Siguiente">&#8250;</button>
+    </section>
+
+    <!-- Panel de notas -->
+    <section id="notes" class="notes" hidden aria-label="Notas del orador">
+      <div class="notes-head">Notas</div>
+      <div id="notes-body" class="notes-body"></div>
+    </section>
+
+    <!-- Barra inferior -->
+    <footer class="toolbar">
+      <div id="progress" class="progress" role="slider" aria-label="Progreso"
+           aria-valuemin="1" tabindex="0">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <div class="toolbar-row">
+        <div class="toolbar-group">
+          <button id="btn-thumbs" class="tb-btn" title="Miniaturas (T)" aria-label="Miniaturas">
+            <svg viewBox="0 0 16 16" width="16" height="16"><rect x="1" y="2" width="6" height="5" rx="1" fill="currentColor"/><rect x="9" y="2" width="6" height="5" rx="1" fill="currentColor" opacity=".45"/><rect x="1" y="9" width="6" height="5" rx="1" fill="currentColor" opacity=".45"/><rect x="9" y="9" width="6" height="5" rx="1" fill="currentColor" opacity=".45"/></svg>
+          </button>
+          <button id="btn-search" class="tb-btn" title="Buscar" aria-label="Buscar">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><line x1="10.4" y1="10.4" x2="14" y2="14"/></svg>
+          </button>
+        </div>
+        <div class="toolbar-group toolbar-center">
+          <button id="btn-prev" class="tb-btn" title="Anterior (←)" aria-label="Anterior">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="10,2.5 4.5,8 10,13.5"/></svg>
+          </button>
+          <span id="counter" class="counter">– / –</span>
+          <button id="btn-next" class="tb-btn" title="Siguiente (→)" aria-label="Siguiente">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="6,2.5 11.5,8 6,13.5"/></svg>
+          </button>
+        </div>
+        <div class="toolbar-group">
+          <button id="btn-notes" class="tb-btn" title="Notas (N)" aria-label="Notas">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="11" y2="9"/></svg>
+          </button>
+          <button id="btn-fs" class="tb-btn" title="Pantalla completa (F)" aria-label="Pantalla completa">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,6 2,2 6,2"/><polyline points="10,2 14,2 14,6"/><polyline points="14,10 14,14 10,14"/><polyline points="6,14 2,14 2,10"/></svg>
+          </button>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Búsqueda -->
+  <div id="search-overlay" class="search-overlay" hidden>
+    <div class="search-panel">
+      <input id="search-input" class="search-input" type="search"
+             placeholder="Buscar en la presentación…" autocomplete="off" spellcheck="false">
+      <ol id="search-results" class="search-results"></ol>
+    </div>
+  </div>
+
+</div>
+<script src="{{PLAYER_JS}}"></script>
+</body>
+</html>

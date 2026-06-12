@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pptx2web"
+version = "0.1.0"
+description = "Publicador local de PowerPoint a experiencia web (Windows, COM)"
+requires-python = ">=3.11"
+dependencies = [
+    "pywin32>=306",
+    "python-pptx>=1.0",
+    "Pillow>=10.0",
+    "click>=8.1",
+]
+
+[project.scripts]
+pptx2web = "pptx2web.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pptx2web = ["player/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "com: tests que requieren PowerPoint instalado (no corren en CI)",
+]
