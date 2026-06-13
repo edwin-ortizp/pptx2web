@@ -25,6 +25,10 @@ DEFAULT_LAYOUT = {
     "defaultPanel": "thumbnails",
 }
 
+DEFAULT_POINTER = {"size": 18, "color": "#ff3b30"}
+POINTER_MIN = 8
+POINTER_MAX = 80
+
 
 def themes_dir() -> Path:
     if getattr(sys, "frozen", False):  # PyInstaller
@@ -117,6 +121,9 @@ def resolve(
     if not isinstance(course, dict):
         raise ValidationError("'course' debe ser un objeto {title, logo}")
 
+    pointer = {**DEFAULT_POINTER, **(theme.get("pointer") or {}), **(cfg.get("pointer") or {})}
+    pointer = _validate_pointer(pointer, warnings)
+
     player_config = {
         "theme": theme_name,
         "colors": colors,
@@ -128,8 +135,30 @@ def resolve(
         "sections": sections,
         "links": _validate_links(cfg.get("links"), slide_count),
         "quizzes": _validate_quizzes(cfg.get("quizzes"), slide_count),
+        "pointer": pointer,
     }
     return player_config, warnings
+
+
+def _validate_pointer(pointer: dict, warnings: list[str]) -> dict:
+    """Puntero láser: {size (px, 8-80), color (CSS)}."""
+    if not isinstance(pointer, dict):
+        raise ValidationError("'pointer' debe ser un objeto {size, color}")
+    try:
+        size = int(pointer.get("size", DEFAULT_POINTER["size"]))
+    except (TypeError, ValueError):
+        warnings.append(
+            f"pointer.size inválido; se usa {DEFAULT_POINTER['size']}"
+        )
+        size = DEFAULT_POINTER["size"]
+    clamped = max(POINTER_MIN, min(POINTER_MAX, size))
+    if clamped != size:
+        warnings.append(
+            f"pointer.size {size} fuera de rango ({POINTER_MIN}-{POINTER_MAX}); "
+            f"ajustado a {clamped}"
+        )
+    color = str(pointer.get("color", DEFAULT_POINTER["color"]))
+    return {"size": clamped, "color": color}
 
 
 def _validate_links(links, slide_count: int) -> list[dict]:

@@ -139,6 +139,37 @@ def test_config_quizzes_valid_and_invalid():
         ]}, None, 5)
 
 
+def test_pointer_defaults():
+    cfg, warnings = resolve(None, None, 5)
+    assert cfg["pointer"] == {"size": 18, "color": "#ff3b30"}
+    assert warnings == []
+
+
+def test_pointer_custom_and_clamp():
+    cfg, _ = resolve({"pointer": {"size": 30, "color": "#00f"}}, None, 5)
+    assert cfg["pointer"] == {"size": 30, "color": "#00f"}
+
+    cfg, warnings = resolve({"pointer": {"size": 999}}, None, 5)
+    assert cfg["pointer"]["size"] == 80  # clamp al máximo
+    assert any("fuera de rango" in w for w in warnings)
+
+    cfg, warnings = resolve({"pointer": {"size": 2}}, None, 5)
+    assert cfg["pointer"]["size"] == 8  # clamp al mínimo
+
+
+def test_pointer_invalid_size_warns():
+    cfg, warnings = resolve({"pointer": {"size": "grande"}}, None, 5)
+    assert cfg["pointer"]["size"] == 18
+    assert any("inválido" in w for w in warnings)
+
+
+def test_pointer_from_theme():
+    # certmind no define pointer → defaults; default tampoco. Verifica merge:
+    cfg, _ = resolve({"theme": "default", "pointer": {"color": "#abc"}}, None, 5)
+    assert cfg["pointer"]["color"] == "#abc"
+    assert cfg["pointer"]["size"] == 18
+
+
 def test_load_deck_config_invalid_json(tmp_path: Path):
     bad = tmp_path / "c.config.json"
     bad.write_text("{rota", encoding="utf-8")

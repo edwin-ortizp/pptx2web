@@ -62,6 +62,9 @@ Exit codes: `0` ok · `2` input inválido · `3` PowerPoint no disponible · `4`
   player.
 - **Quizzes:** láminas de pregunta con opciones interactivas y feedback
   inmediato, definidas en las notas del slide o en el config.
+- **Puntero láser:** tecla `L` o botón; un punto luminoso sigue el cursor (o el
+  dedo en táctil) para señalar sobre la lámina, como el modo presentador de
+  PowerPoint. Está apagado por defecto; tamaño y color configurables.
 - **Pantalla completa:** tecla `F`.
 - **Deep-linking:** `index.html#slide=7` abre directamente el slide 7.
 - **Rendimiento:** carga inicial mínima (HTML + CSS + JS + slide 1); precarga
@@ -161,10 +164,13 @@ no: Revisa la sección "¿Qué es ITIL 4?".
 - La pregunta es opcional (si la lámina ya la muestra, puedes omitirla).
 - `ok:` / `no:` son los mensajes de feedback, opcionales.
 - Esas notas no se publican como notas normales.
+- En la lámina de quiz aparece un botón flotante ("Responder pregunta"); al
+  pulsarlo se abre la pregunta en un panel centrado (no es invasivo: la lámina
+  se ve completa hasta que el estudiante decide responder).
 - Al responder: la correcta se marca en verde, la elegida incorrecta en rojo,
-  y se muestra el feedback. La tarjeta es colapsable para ver la lámina
-  completa. Si el bloque está malformado, el CLI avisa y la lámina queda
-  normal.
+  y se muestra el feedback. Se cierra con `Esc`, la ✕ o clic fuera; al volver,
+  el botón dice "Ver respuesta" y conserva lo respondido. Si el bloque está
+  malformado, el CLI avisa y la lámina queda normal.
 
 Alternativa en el config (reemplaza al quiz de notas de esa lámina):
 
@@ -175,10 +181,22 @@ Alternativa en el config (reemplaza al quiz de notas de esa lámina):
 ]
 ```
 
+### Puntero láser
+
+Se activa con la tecla `L` o el botón de la barra (apagado por defecto). El
+tamaño y color se configuran:
+
+```json
+"pointer": { "size": 24, "color": "#ff3b30" }
+```
+
+`size` es el diámetro en px (8–80). También puede fijarse por tema en
+`themes/*.json`.
+
 **Editable después de publicar:** la salida incluye un `config.json` en la
 raíz. Si el material se sirve por HTTP, el player lo lee al cargar y aplica
-los cambios (colores, secciones, layout) **sin reconvertir el .pptx**. Vía
-`file://` se usa la config embebida en `index.html`.
+los cambios (colores, secciones, layout, links, quizzes, puntero) **sin
+reconvertir el .pptx**. Vía `file://` se usa la config embebida en `index.html`.
 
 ## Despliegue
 

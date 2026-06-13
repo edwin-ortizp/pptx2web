@@ -77,6 +77,7 @@
         : panels[0] || "thumbnails";
     }
     setPanel(activePanel);
+    applyPointerStyle();
     renderLinks(current);
     renderQuiz(current);
     updateChrome();
@@ -351,12 +352,18 @@
 
   // respuesta por sesión: índice de slide → índice de opción elegida
   const quizAnswers = new Map();
+  const LETTERS = "ABCDEFGHIJ";
 
   function quizFor(i) {
     const fromConfig = (config.quizzes || []).find((q) => q.slide === i + 1);
     return fromConfig || slides[i].quiz || null;
   }
 
+  function quizOpen() {
+    return !!$("quiz-layer").querySelector(".quiz-overlay");
+  }
+
+  // Cerrado por defecto en cada lámina: solo se muestra el botón flotante.
   function renderQuiz(i) {
     const layer = $("quiz-layer");
     layer.innerHTML = "";
@@ -364,8 +371,44 @@
     layer.hidden = !quiz;
     if (!quiz) return;
 
+    const answered = quizAnswers.has(i);
+    const toggle = document.createElement("button");
+    toggle.className = "quiz-toggle";
+    toggle.type = "button";
+    toggle.textContent = answered ? "Ver respuesta" : "Responder pregunta";
+    toggle.addEventListener("click", () => openQuiz(i));
+    layer.appendChild(toggle);
+  }
+
+  function openQuiz(i) {
+    const layer = $("quiz-layer");
+    const quiz = quizFor(i);
+    if (!quiz) return;
+    layer.querySelector(".quiz-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "quiz-overlay";
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeQuiz();
+    });
+
     const card = document.createElement("div");
     card.className = "quiz-card";
+    const answered = quizAnswers.has(i);
+    if (answered) card.classList.add("answered");
+
+    const close = document.createElement("button");
+    close.className = "quiz-close";
+    close.type = "button";
+    close.setAttribute("aria-label", "Cerrar");
+    close.innerHTML = "&#x2715;";
+    close.addEventListener("click", closeQuiz);
+    card.appendChild(close);
+
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "quiz-eyebrow";
+    eyebrow.textContent = "Pregunta";
+    card.appendChild(eyebrow);
 
     if (quiz.question) {
       const q = document.createElement("div");
@@ -376,21 +419,28 @@
 
     const opts = document.createElement("div");
     opts.className = "quiz-options";
-    const answered = quizAnswers.has(i);
-
     quiz.options.forEach((opt, k) => {
       const btn = document.createElement("button");
       btn.className = "quiz-option";
       btn.type = "button";
-      const dot = document.createElement("span");
-      dot.className = "quiz-dot";
-      const label = document.createElement("span");
-      label.textContent = opt.text;
-      btn.append(dot, label);
+
+      const letter = document.createElement("span");
+      letter.className = "quiz-letter";
+      letter.textContent = LETTERS[k] || (k + 1);
+
+      const text = document.createElement("span");
+      text.className = "quiz-option-text";
+      text.textContent = opt.text;
+
+      const mark = document.createElement("span");
+      mark.className = "quiz-mark";
+
+      btn.append(letter, text, mark);
       if (!answered) {
         btn.addEventListener("click", () => {
           quizAnswers.set(i, k);
           renderQuiz(i);
+          openQuiz(i);
         });
       }
       opts.appendChild(btn);
@@ -404,10 +454,10 @@
         btn.disabled = true;
         if (quiz.options[k].correct) {
           btn.classList.add("correct");
-          btn.querySelector(".quiz-dot").textContent = "✓";
+          btn.querySelector(".quiz-mark").textContent = "✓";
         } else if (k === chosen) {
           btn.classList.add("wrong");
-          btn.querySelector(".quiz-dot").textContent = "✕";
+          btn.querySelector(".quiz-mark").textContent = "✕";
         }
       });
       const fbText = ok ? quiz.feedbackOk : quiz.feedbackKo;
@@ -417,31 +467,12 @@
       card.appendChild(fb);
     }
 
-    // colapsable: ver la lámina completa sin la tarjeta
-    const toggle = document.createElement("button");
-    toggle.className = "quiz-toggle";
-    toggle.type = "button";
-    toggle.hidden = true;
-    toggle.textContent = answered ? "Ver respuesta" : "Responder pregunta";
-    toggle.addEventListener("click", () => {
-      card.style.display = "";
-      toggle.hidden = true;
-    });
-    const collapse = document.createElement("button");
-    collapse.className = "tb-btn quiz-collapse";
-    collapse.type = "button";
-    collapse.title = "Ocultar la pregunta";
-    collapse.setAttribute("aria-label", "Ocultar la pregunta");
-    collapse.innerHTML = "&#x2715;";
-    collapse.style.cssText = "position:absolute;top:6px;right:6px;width:26px;height:26px;font-size:11px;";
-    collapse.addEventListener("click", () => {
-      card.style.display = "none";
-      toggle.hidden = false;
-    });
-    card.style.position = "relative";
-    card.appendChild(collapse);
+    overlay.appendChild(card);
+    layer.appendChild(overlay);
+  }
 
-    layer.append(card, toggle);
+  function closeQuiz() {
+    $("quiz-layer").querySelector(".quiz-overlay")?.remove();
   }
 
   // ─────────────────── sidebar de miniaturas ───────────────────
@@ -635,6 +666,41 @@
     fitSlideBox();
   });
 
+  // ─────────────────── puntero láser ───────────────────
+
+  let laserOn = false;
+  const laserDot = $("laser-dot");
+
+  function applyPointerStyle() {
+    const p = config.pointer || {};
+    const root = document.documentElement.style;
+    if (p.size) root.setProperty("--laser-size", `${p.size}px`);
+    if (p.color) root.setProperty("--laser-color", p.color);
+  }
+
+  function setLaser(on) {
+    laserOn = on;
+    stage.classList.toggle("laser-on", on);
+    $("btn-laser").classList.toggle("on", on);
+    if (!on) laserDot.hidden = true;
+  }
+
+  function toggleLaser() { setLaser(!laserOn); }
+
+  function moveLaser(clientX, clientY) {
+    const rect = stage.getBoundingClientRect();
+    laserDot.hidden = false;
+    laserDot.style.transform =
+      `translate(${clientX - rect.left}px, ${clientY - rect.top}px)`;
+  }
+
+  stage.addEventListener("pointermove", (e) => {
+    if (laserOn) moveLaser(e.clientX, e.clientY);
+  });
+  stage.addEventListener("pointerleave", () => {
+    if (laserOn) laserDot.hidden = true;
+  });
+
   // ─────────────────── teclado ───────────────────
 
   document.addEventListener("keydown", (e) => {
@@ -654,8 +720,11 @@
       case "f": case "F": toggleFullscreen(); break;
       case "n": case "N": toggleNotes(); break;
       case "t": case "T": toggleThumbs(); break;
+      case "l": case "L": toggleLaser(); break;
       case "Escape":
-        if (document.fullscreenElement) document.exitFullscreen();
+        if (quizOpen()) closeQuiz();
+        else if (laserOn) setLaser(false);
+        else if (document.fullscreenElement) document.exitFullscreen();
         else if (!notesPanel.hidden) toggleNotes(false);
         break;
     }
@@ -666,10 +735,18 @@
   let touchX = null;
   let touchY = null;
   stage.addEventListener("touchstart", (e) => {
+    if (laserOn) {  // con el láser activo, el dedo señala, no navega
+      moveLaser(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      return;
+    }
     touchX = e.changedTouches[0].clientX;
     touchY = e.changedTouches[0].clientY;
   }, { passive: true });
+  stage.addEventListener("touchmove", (e) => {
+    if (laserOn) moveLaser(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }, { passive: true });
   stage.addEventListener("touchend", (e) => {
+    if (laserOn) { laserDot.hidden = true; return; }
     if (touchX === null) return;
     const dx = e.changedTouches[0].clientX - touchX;
     const dy = e.changedTouches[0].clientY - touchY;
@@ -720,6 +797,7 @@
   $("btn-notes").addEventListener("click", () => toggleNotes());
   $("btn-thumbs").addEventListener("click", () => toggleThumbs());
   $("btn-search").addEventListener("click", openSearch);
+  $("btn-laser").addEventListener("click", toggleLaser);
   $("tab-sections").addEventListener("click", () => setPanel("sections"));
   $("tab-thumbnails").addEventListener("click", () => setPanel("thumbnails"));
 
