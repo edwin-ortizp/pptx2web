@@ -23,6 +23,26 @@ pip install -e .
 
 ## Uso
 
+Hay dos formas: el **asistente gráfico** (recomendado para configurar secciones,
+temas y colores) o la **CLI** (para automatizar).
+
+### Asistente gráfico
+
+```powershell
+pip install -e .[gui]
+pptx2web-gui            # o: python -m pptx2web.gui
+```
+
+Abre una ventana con un paso a paso: elegir `.pptx` → tema y colores (con
+selector y previsualización en vivo) → editor de secciones (con validación) →
+curso y logo → opciones de salida y publicación con barra de progreso. Guarda un
+`<nombre>.config.json` junto al `.pptx` que la CLI reutiliza.
+
+> El asistente es una **herramienta de administración**: nada de su interfaz se
+> incluye en la carpeta exportada, que queda idéntica a la de la CLI.
+
+### CLI
+
 ```powershell
 pptx2web presentacion.pptx
 # → crea .\presentacion-web\ lista para abrir o publicar
@@ -35,7 +55,7 @@ pptx2web presentacion.pptx -o salida\ --quality 82 --scale 2.0 --zip --open
 | `-o, --out DIR` | Carpeta de salida (default `./<nombre>-web/`) |
 | `--scale FLOAT` | Resolución del render, 2.0 por defecto (máx 3.0) |
 | `--quality INT` | Calidad WebP 1–100 (default 82) |
-| `--format webp\|png` | Formato de los slides (default webp) |
+| `--format webp\|avif\|png` | Formato de los slides (default webp; avif comprime más pero codifica más lento) |
 | `--theme NAME` | Tema visual predefinido de `themes/` (ej. `certmind`) |
 | `--config PATH` | Config del deck (default: autodetecta `<nombre>.config.json` junto al .pptx) |
 | `--zip` | Genera además `<out>.zip` |

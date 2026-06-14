@@ -21,28 +21,33 @@ def process(
     out: Path,
     quality: int = 82,
     fmt: str = "webp",
+    on_image=None,
 ) -> tuple[list[SlideAssets], list[str]]:
     """Convierte los PNG intermedios a assets finales hasheados.
 
     Devuelve (assets, warnings). Borra los PNG intermedios al terminar.
+    `on_image(i, total)` (opcional) reporta progreso tras cada lámina.
     """
     slides_dir = out / "slides"
     thumbs_dir = out / "thumbs"
     slides_dir.mkdir(parents=True, exist_ok=True)
     thumbs_dir.mkdir(parents=True, exist_ok=True)
 
-    ext = ".webp" if fmt == "webp" else ".png"
+    ext = {"webp": ".webp", "avif": ".avif", "png": ".png"}.get(fmt, ".png")
     assets: list[SlideAssets] = []
     warnings: list[str] = []
     total = len(rendered)
 
     for rs in rendered:
         with Image.open(rs.png_path) as im:
-            im = im.convert("RGB") if fmt == "webp" else im
+            im = im.convert("RGB") if fmt in ("webp", "avif") else im
 
             if fmt == "webp":
                 tmp_slide = slides_dir / f"_slide-{rs.index:03d}.webp"
                 im.save(tmp_slide, "WEBP", quality=quality, method=6)
+            elif fmt == "avif":
+                tmp_slide = slides_dir / f"_slide-{rs.index:03d}.avif"
+                _save_avif(im, tmp_slide, quality)
             else:
                 tmp_slide = slides_dir / f"_slide-{rs.index:03d}.png"
                 im.save(tmp_slide, "PNG", optimize=True)
@@ -67,6 +72,8 @@ def process(
 
         rs.png_path.unlink(missing_ok=True)
         log.info("[%d/%d] %s", rs.index, total, slide_name)
+        if on_image:
+            on_image(rs.index, total)
         assets.append(
             SlideAssets(
                 index=rs.index,
@@ -78,6 +85,15 @@ def process(
         )
 
     return assets, warnings
+
+
+def _save_avif(im, path: Path, quality: int) -> None:
+    """AVIF con un `speed` moderado para que el encode no sea lento; si la
+    versión de Pillow no acepta ese parámetro, cae a solo quality."""
+    try:
+        im.save(path, "AVIF", quality=quality, speed=6)
+    except (TypeError, ValueError):
+        im.save(path, "AVIF", quality=quality)
 
 
 def content_hash(path: Path) -> str:

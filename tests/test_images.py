@@ -44,6 +44,22 @@ def test_png_escape_format(tmp_path: Path):
     assert assets[0].src.endswith(".png")
 
 
+def test_avif_format(tmp_path: Path):
+    out = tmp_path / "out"
+    rendered = _fake_render(tmp_path, 2)
+    assets, _ = process(rendered, out, fmt="avif")
+    for a in assets:
+        assert a.src.endswith(".avif")
+        slide_file = out / a.src
+        assert slide_file.exists() and slide_file.stat().st_size > 0
+        with Image.open(slide_file) as im:  # AVIF legible
+            assert im.format == "AVIF"
+        # la miniatura sigue en WebP
+        assert a.thumb.endswith(".webp")
+    # PNG intermedios borrados
+    assert not any(r.png_path.exists() for r in rendered)
+
+
 def test_identical_content_same_hash(tmp_path: Path):
     a1, _ = process(_fake_render(tmp_path, 1), tmp_path / "o1")
     a2, _ = process(_fake_render(tmp_path, 1), tmp_path / "o2")

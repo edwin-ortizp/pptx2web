@@ -43,12 +43,15 @@ def read_slide_size_pt(pptx_path: Path) -> tuple[float, float]:
 
 
 def render_slides(
-    pptx_path: Path, out_dir: Path, scale: float = 2.0
+    pptx_path: Path, out_dir: Path, scale: float = 2.0, on_slide=None
 ) -> list[RenderedSlide]:
     """Exporta cada slide a PNG en out_dir. Devuelve la lista en orden.
 
     Abre una instancia COM nueva (DispatchEx) para no interferir con un
     PowerPoint que el usuario tenga abierto, y la cierra en finally.
+
+    `on_slide(i, total)` (opcional) se llama tras exportar cada lámina, para
+    reportar progreso a un front-end (CLI/GUI).
     """
     try:
         import pythoncom
@@ -100,6 +103,8 @@ def render_slides(
             png_path = out_dir / f"slide-{i:03d}.png"
             _export_with_retry(pres.Slides(i), png_path, width_px, height_px, i)
             log.info("[%d/%d] %s", i, total, png_path.name)
+            if on_slide:
+                on_slide(i, total)
             rendered.append(
                 RenderedSlide(
                     index=i, png_path=png_path,

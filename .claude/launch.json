@@ -12,6 +12,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8743", "--directory", "out/big300-web"],
       "port": 8743
+    },
+    {
+      "name": "gui-assets",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8744", "--directory", "src/pptx2web/gui/assets"],
+      "port": 8744
+    },
+    {
+      "name": "demo-avif",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8745", "--directory", "out/demo-avif"],
+      "port": 8745
     }
   ]
 }

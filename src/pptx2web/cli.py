@@ -5,21 +5,15 @@ Exit codes: 0 ok · 2 input inválido · 3 PowerPoint no disponible · 4 error d
 from __future__ import annotations
 
 import logging
-import shutil
 import sys
-import tempfile
 import webbrowser
 from pathlib import Path
 
 import click
 
 from . import config as config_mod
-from . import images, media, metadata, packager
-from .renderer import (
-    PowerPointNotAvailableError,
-    RenderError,
-    render_slides,
-)
+from . import pipeline
+from .renderer import PowerPointNotAvailableError, RenderError
 from .validate import ValidationError, validate_input
 
 log = logging.getLogger("pptx2web")
@@ -37,8 +31,9 @@ EXIT_RENDER_ERROR = 4
               help="Factor de resolución del render (máx 3.0)")
 @click.option("--quality", default=82, show_default=True,
               help="Calidad WebP (1-100)")
-@click.option("--format", "fmt", type=click.Choice(["webp", "png"]),
-              default="webp", show_default=True, help="Formato de los slides")
+@click.option("--format", "fmt", type=click.Choice(["webp", "avif", "png"]),
+              default="webp", show_default=True,
+              help="Formato de los slides (avif: más liviano, encode más lento)")
 @click.option("--theme", "theme_name", default=None,
               help="Tema visual predefinido (ver carpeta themes/)")
 @click.option("--config", "config_path", type=click.Path(path_type=Path),
@@ -82,82 +77,56 @@ def main(input_pptx: Path, out_dir: Path | None, scale: float, quality: int,
 
     if out_dir is None:
         out_dir = Path.cwd() / f"{pptx_path.stem}-web"
-    out_dir = out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    warnings: list[str] = []
-
-    # 1. Render COM → PNGs intermedios en carpeta temporal
     click.echo(f"Convirtiendo: {pptx_path.name}")
-    tmp_dir = Path(tempfile.mkdtemp(prefix="pptx2web-"))
+    stages = {
+        "render": "Renderizando slides con PowerPoint…",
+        "metadata": "Extrayendo metadatos…",
+        "media": "Procesando media…",
+        "images": f"Optimizando imágenes ({fmt})…",
+        "package": "Empaquetando…",
+    }
+    seen: set[str] = set()
+
+    def on_progress(stage: str, current, total) -> None:
+        if stage == "render" and current and total:
+            log.info("[%d/%d] slide-%03d", current, total, current)
+            return
+        if stage in stages and stage not in seen:
+            seen.add(stage)
+            click.echo(stages[stage])
+
     try:
-        click.echo("Renderizando slides con PowerPoint…")
-        try:
-            rendered = render_slides(pptx_path, tmp_dir, scale=scale)
-        except PowerPointNotAvailableError as exc:
-            _fail(str(exc), EXIT_NO_POWERPOINT)
-        except RenderError as exc:
-            _fail(str(exc), EXIT_RENDER_ERROR)
-
-        # 2. Metadatos (python-pptx)
-        click.echo("Extrayendo metadatos…")
-        deck = metadata.extract(pptx_path)
-        warnings.extend(deck.warnings)
-        if deck.slide_count != len(rendered):
-            # Slides ocultos: COM exporta también los ocultos, así que la
-            # cuenta debería coincidir; si no, abortar antes de publicar algo roto.
-            _fail(
-                f"Inconsistencia: COM exportó {len(rendered)} slides pero "
-                f"python-pptx ve {deck.slide_count}.", EXIT_RENDER_ERROR,
-            )
-
-        # 3. Media
-        media_files, media_warnings = media.process_media(deck, pptx_path, out_dir)
-        warnings.extend(media_warnings)
-
-        # 4. Imágenes finales
-        click.echo(f"Optimizando imágenes ({fmt})…")
-        assets, img_warnings = images.process(rendered, out_dir, quality, fmt)
-        warnings.extend(img_warnings)
-
-        # 5. Configuración (tema + secciones, ya con slideCount conocido)
-        try:
-            player_config, cfg_warnings = config_mod.resolve(
-                deck_config, theme_name, deck.slide_count
-            )
-        except ValidationError as exc:
-            _fail(str(exc), EXIT_INVALID_INPUT)
-        warnings.extend(cfg_warnings)
-
-        # 6. Empaquetado
-        slide_px = (rendered[0].width_px, rendered[0].height_px)
-        manifest = packager.build_manifest(deck, assets, slide_px)
-        index_path = packager.package(
-            manifest, out_dir, player_config,
+        summary = pipeline.convert(
+            pptx_path=pptx_path, out_dir=out_dir, scale=scale, quality=quality,
+            fmt=fmt, theme=theme_name, deck_config=deck_config,
             config_dir=config_path.parent if config_path else None,
-            make_zip=make_zip,
+            make_zip=make_zip, on_progress=on_progress,
         )
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+    except PowerPointNotAvailableError as exc:
+        _fail(str(exc), EXIT_NO_POWERPOINT)
+    except RenderError as exc:
+        _fail(str(exc), EXIT_RENDER_ERROR)
+    except ValidationError as exc:
+        _fail(str(exc), EXIT_INVALID_INPUT)
 
-    _summary(manifest, assets, media_files, warnings, out_dir)
+    _summary(summary)
 
     if open_after:
-        webbrowser.open(index_path.as_uri())
+        webbrowser.open(summary.index_path.as_uri())
 
 
-def _summary(manifest, assets, media_files, warnings, out_dir: Path) -> None:
-    total_bytes = sum(a.src_bytes + a.thumb_bytes for a in assets)
+def _summary(summary) -> None:
     click.echo("")
-    click.echo(f"Listo: {out_dir}")
-    click.echo(f"  Slides: {manifest['slideCount']}")
-    click.echo(f"  Peso de imágenes: {total_bytes / 1024 / 1024:.1f} MB")
-    if media_files:
-        click.echo(f"  Media: {len(media_files)} archivo(s)")
-    click.echo(f"  buildId: {manifest['buildId']}")
-    if warnings:
-        click.echo(f"\n{len(warnings)} advertencia(s):")
-        for w in warnings:
+    click.echo(f"Listo: {summary.out_dir}")
+    click.echo(f"  Slides: {summary.slide_count}")
+    click.echo(f"  Peso de imágenes: {summary.image_bytes / 1024 / 1024:.1f} MB")
+    if summary.media_count:
+        click.echo(f"  Media: {summary.media_count} archivo(s)")
+    click.echo(f"  buildId: {summary.build_id}")
+    if summary.warnings:
+        click.echo(f"\n{len(summary.warnings)} advertencia(s):")
+        for w in summary.warnings:
             click.echo(f"  - {w}")
 
 

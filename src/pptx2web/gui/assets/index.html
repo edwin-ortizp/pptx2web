@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pptx2web — Asistente</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Barra de pasos (izquierda) -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">P2W</div>
+      <div class="brand-text">
+        <strong>pptx2web</strong>
+        <span>Asistente de publicación</span>
+      </div>
+    </div>
+    <ol class="steps" id="steps">
+      <li class="step active" data-step="0"><span class="step-n">1</span><span class="step-l">Archivo</span></li>
+      <li class="step" data-step="1"><span class="step-n">2</span><span class="step-l">Apariencia</span></li>
+      <li class="step" data-step="2"><span class="step-n">3</span><span class="step-l">Secciones</span></li>
+      <li class="step" data-step="3"><span class="step-n">4</span><span class="step-l">Quizzes</span></li>
+      <li class="step" data-step="4"><span class="step-n">5</span><span class="step-l">Enlaces</span></li>
+      <li class="step" data-step="5"><span class="step-n">6</span><span class="step-l">Curso</span></li>
+      <li class="step" data-step="6"><span class="step-n">7</span><span class="step-l">Publicar</span></li>
+    </ol>
+    <div class="rail-foot" id="deck-badge" hidden>
+      <div class="badge-title" id="badge-title"></div>
+      <div class="badge-sub" id="badge-sub"></div>
+    </div>
+  </aside>
+
+  <!-- Panel central (contenido del paso) -->
+  <main class="panel">
+    <div class="panel-scroll" id="panel-scroll">
+
+      <!-- Paso 1: Archivo -->
+      <section class="pane active" data-pane="0">
+        <h1 class="pane-title">Elige tu presentación</h1>
+        <p class="pane-sub">Selecciona un archivo <code>.pptx</code>. Lo abriremos con PowerPoint para previsualizarlo.</p>
+        <button class="dropzone" id="pick-pptx">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M12 11v6M9.5 13.5 12 11l2.5 2.5"/></svg>
+          <span class="dz-main">Seleccionar archivo .pptx</span>
+          <span class="dz-sub">o arrástralo aquí</span>
+        </button>
+        <div class="deck-info" id="deck-info" hidden>
+          <div class="deck-info-row"><span>Título</span><b id="di-title"></b></div>
+          <div class="deck-info-row"><span>Láminas</span><b id="di-count"></b></div>
+          <div class="deck-info-row" id="di-config-row" hidden><span>Config</span><b id="di-config"></b></div>
+        </div>
+      </section>
+
+      <!-- Paso 2: Apariencia -->
+      <section class="pane" data-pane="1">
+        <h1 class="pane-title">Apariencia</h1>
+        <p class="pane-sub">Tema, colores y herramientas. Los colores se reflejan al instante en la vista previa.</p>
+        <div class="field">
+          <label>Tema base</label>
+          <div class="theme-cards" id="theme-cards"></div>
+        </div>
+        <div class="field">
+          <label>Posición del panel lateral</label>
+          <div class="seg" id="side-seg">
+            <button data-side="left" class="active">Izquierda</button>
+            <button data-side="right">Derecha (estilo iSpring)</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Colores <button class="link-btn" id="reset-colors">restablecer al tema</button></label>
+          <div class="swatches" id="color-swatches"></div>
+        </div>
+
+        <div class="subhead">Puntero láser</div>
+        <div class="tool-row">
+          <div class="swatch">
+            <input type="color" id="pointer-color" value="#ff3b30">
+            <div class="swatch-meta"><b>Color</b><span>del puntero</span></div>
+          </div>
+          <div class="slider-field">
+            <label>Tamaño: <b id="pointer-size-val">18</b> px</label>
+            <input type="range" id="pointer-size" min="8" max="80" value="18">
+          </div>
+        </div>
+
+        <div class="subhead">Herramientas de dibujo</div>
+        <div class="field">
+          <label>Paleta del lápiz / resaltador <button class="link-btn" id="add-pen-color">+ color</button></label>
+          <div class="pen-swatches" id="pen-swatches"></div>
+        </div>
+        <div class="grid3">
+          <div class="slider-field"><label>Lápiz: <b id="pen-size-val">3</b></label>
+            <input type="range" id="pen-size" min="1" max="40" value="3"></div>
+          <div class="slider-field"><label>Resaltador: <b id="hl-size-val">18</b></label>
+            <input type="range" id="hl-size" min="4" max="60" value="18"></div>
+          <div class="slider-field"><label>Borrador: <b id="er-size-val">28</b></label>
+            <input type="range" id="er-size" min="4" max="60" value="28"></div>
+        </div>
+      </section>
+
+      <!-- Paso 3: Secciones -->
+      <section class="pane" data-pane="2">
+        <h1 class="pane-title">Secciones del curso</h1>
+        <p class="pane-sub">Agrupa las láminas en secciones para el panel de contenido. Opcional.</p>
+        <div class="sections" id="sections"></div>
+        <button class="ghost-btn" id="add-section">+ Agregar sección</button>
+        <div class="notice" id="sections-msg" hidden></div>
+      </section>
+
+      <!-- Paso 4: Interactividad (solo lectura) -->
+      <section class="pane" data-pane="3">
+        <h1 class="pane-title">Interactividad</h1>
+        <p class="pane-sub">Quizzes y enlaces detectados en la presentación. Solo lectura — para revisar antes de publicar.</p>
+        <div id="interactivity"></div>
+      </section>
+
+      <!-- Paso 5: Curso -->
+      <section class="pane" data-pane="4">
+        <h1 class="pane-title">Datos del curso</h1>
+        <p class="pane-sub">Nombre y logo que aparecen en el panel del player.</p>
+        <div class="field">
+          <label for="course-title">Nombre del curso</label>
+          <input type="text" id="course-title" placeholder="Ej. ITIL 4 Fundamentos">
+        </div>
+        <div class="field">
+          <label>Logo</label>
+          <div class="logo-row">
+            <button class="ghost-btn" id="pick-logo">Seleccionar imagen…</button>
+            <span class="logo-name" id="logo-name">Ninguno</span>
+            <button class="link-btn" id="clear-logo" hidden>quitar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Paso 6: Publicar -->
+      <section class="pane" data-pane="5">
+        <h1 class="pane-title">Publicar</h1>
+        <p class="pane-sub">Opciones de salida y conversión final.</p>
+        <div class="grid2">
+          <div class="field">
+            <label for="opt-scale">Resolución (escala)</label>
+            <select id="opt-scale">
+              <option value="1.5">1.5× (liviano)</option>
+              <option value="2.0" selected>2.0× (recomendado)</option>
+              <option value="3.0">3.0× (máxima)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="opt-quality">Calidad WebP: <b id="quality-val">82</b></label>
+            <input type="range" id="opt-quality" min="40" max="100" value="82">
+          </div>
+          <div class="field">
+            <label for="opt-format">Formato</label>
+            <select id="opt-format"><option value="webp" selected>WebP</option><option value="avif">AVIF (más liviano, más lento)</option><option value="png">PNG</option></select>
+          </div>
+          <div class="field checkbox">
+            <label><input type="checkbox" id="opt-zip"> Generar también un <code>.zip</code></label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Carpeta de salida</label>
+          <div class="logo-row">
+            <button class="ghost-btn" id="pick-out">Elegir carpeta…</button>
+            <span class="logo-name" id="out-name">junto al .pptx (por defecto)</span>
+          </div>
+        </div>
+        <button class="cta" id="convert-btn">Publicar presentación</button>
+        <div class="progress-wrap" id="progress-wrap" hidden>
+          <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+          <div class="progress-label" id="progress-label">Preparando…</div>
+        </div>
+        <div class="result" id="result" hidden>
+          <div class="result-head">✓ Publicado</div>
+          <div class="result-body" id="result-body"></div>
+          <div class="result-actions">
+            <button class="cta sm" id="open-result">Abrir en el navegador</button>
+            <button class="ghost-btn" id="open-folder">Abrir carpeta</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Navegación inferior -->
+    <footer class="panel-nav">
+      <button class="ghost-btn" id="nav-back" disabled>Atrás</button>
+      <div class="nav-dots" id="nav-dots"></div>
+      <button class="cta sm" id="nav-next" disabled>Siguiente</button>
+    </footer>
+  </main>
+
+  <!-- Previsualización (derecha) -->
+  <aside class="preview">
+    <div class="preview-head">
+      <span>Vista previa en vivo</span>
+      <span class="preview-tag" id="preview-tag">esperando archivo</span>
+    </div>
+    <div class="preview-stage">
+      <div class="preview-empty" id="preview-empty">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <p>La vista previa aparecerá aquí<br>al seleccionar tu presentación</p>
+      </div>
+      <iframe id="preview-frame" title="Vista previa" hidden></iframe>
+      <div class="preview-loading" id="preview-loading" hidden><div class="spinner"></div><span>Renderizando…</span></div>
+    </div>
+  </aside>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

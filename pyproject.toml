@@ -14,14 +14,18 @@ dependencies = [
     "click>=8.1",
 ]
 
+[project.optional-dependencies]
+gui = ["pywebview>=5"]
+
 [project.scripts]
 pptx2web = "pptx2web.cli:main"
+pptx2web-gui = "pptx2web.gui.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-pptx2web = ["player/*"]
+pptx2web = ["player/*", "gui/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
