@@ -29,6 +29,14 @@ DEFAULT_POINTER = {"size": 18, "color": "#ff3b30"}
 POINTER_MIN = 8
 POINTER_MAX = 80
 
+DEFAULT_PEN = {
+    "colors": ["#e3342f", "#ffd60a", "#39b54a", "#2f6fed", "#ffffff"],
+    "penSize": 3,
+    "highlighterSize": 18,
+    "eraserSize": 28,
+}
+PEN_SIZE_RANGE = {"penSize": (1, 40), "highlighterSize": (4, 60), "eraserSize": (4, 60)}
+
 
 def themes_dir() -> Path:
     if getattr(sys, "frozen", False):  # PyInstaller
@@ -124,6 +132,9 @@ def resolve(
     pointer = {**DEFAULT_POINTER, **(theme.get("pointer") or {}), **(cfg.get("pointer") or {})}
     pointer = _validate_pointer(pointer, warnings)
 
+    pen = {**DEFAULT_PEN, **(theme.get("pen") or {}), **(cfg.get("pen") or {})}
+    pen = _validate_pen(pen, warnings)
+
     player_config = {
         "theme": theme_name,
         "colors": colors,
@@ -136,6 +147,7 @@ def resolve(
         "links": _validate_links(cfg.get("links"), slide_count),
         "quizzes": _validate_quizzes(cfg.get("quizzes"), slide_count),
         "pointer": pointer,
+        "pen": pen,
     }
     return player_config, warnings
 
@@ -159,6 +171,37 @@ def _validate_pointer(pointer: dict, warnings: list[str]) -> dict:
         )
     color = str(pointer.get("color", DEFAULT_POINTER["color"]))
     return {"size": clamped, "color": color}
+
+
+def _validate_pen(pen: dict, warnings: list[str]) -> dict:
+    """Anotaciones a mano alzada: {colors[], penSize, highlighterSize, eraserSize}."""
+    if not isinstance(pen, dict):
+        raise ValidationError("'pen' debe ser un objeto {colors, penSize, …}")
+
+    raw_colors = pen.get("colors")
+    if isinstance(raw_colors, list):
+        colors = [str(c) for c in raw_colors if isinstance(c, str) and c.strip()]
+    else:
+        colors = []
+    if not colors:
+        if raw_colors is not None:
+            warnings.append("pen.colors inválido o vacío; se usa la paleta por defecto")
+        colors = list(DEFAULT_PEN["colors"])
+
+    out = {"colors": colors}
+    for key, (lo, hi) in PEN_SIZE_RANGE.items():
+        try:
+            size = int(pen.get(key, DEFAULT_PEN[key]))
+        except (TypeError, ValueError):
+            warnings.append(f"pen.{key} inválido; se usa {DEFAULT_PEN[key]}")
+            size = DEFAULT_PEN[key]
+        clamped = max(lo, min(hi, size))
+        if clamped != size:
+            warnings.append(
+                f"pen.{key} {size} fuera de rango ({lo}-{hi}); ajustado a {clamped}"
+            )
+        out[key] = clamped
+    return out
 
 
 def _validate_links(links, slide_count: int) -> list[dict]:

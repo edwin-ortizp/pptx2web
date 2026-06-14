@@ -65,6 +65,9 @@ Exit codes: `0` ok · `2` input inválido · `3` PowerPoint no disponible · `4`
 - **Puntero láser:** tecla `L` o botón; un punto luminoso sigue el cursor (o el
   dedo en táctil) para señalar sobre la lámina, como el modo presentador de
   PowerPoint. Está apagado por defecto; tamaño y color configurables.
+- **Anotaciones temporales:** tecla `D` o botón del lápiz; permite rayar sobre
+  la lámina con lápiz, resaltador y borrador. **No se guardan**: viven solo en
+  memoria y desaparecen al recargar.
 - **Pantalla completa:** tecla `F`.
 - **Deep-linking:** `index.html#slide=7` abre directamente el slide 7.
 - **Rendimiento:** carga inicial mínima (HTML + CSS + JS + slide 1); precarga
@@ -193,9 +196,30 @@ tamaño y color se configuran:
 `size` es el diámetro en px (8–80). También puede fijarse por tema en
 `themes/*.json`.
 
+### Anotaciones temporales (lápiz / resaltador / borrador)
+
+Con la tecla `D` o el botón del lápiz se abre la barra de anotación para rayar
+sobre la lámina durante una explicación. Hay **lápiz**, **resaltador** y
+**borrador**, un selector de color y un botón para limpiar la lámina.
+
+- **No se guardan en ningún lado.** Los trazos viven solo en memoria: cada
+  lámina recuerda los suyos mientras la página esté abierta (al volver a una
+  lámina siguen ahí), pero **todo desaparece al recargar**. La propia barra lo
+  indica ("Anotaciones temporales — se borran al recargar").
+- El láser y el modo dibujo son mutuamente excluyentes; `Esc` sale del modo.
+
+La paleta y los grosores se configuran (con valores por defecto razonables):
+
+```json
+"pen": {
+  "colors": ["#e3342f", "#ffd60a", "#39b54a", "#2f6fed", "#ffffff"],
+  "penSize": 3, "highlighterSize": 18, "eraserSize": 28
+}
+```
+
 **Editable después de publicar:** la salida incluye un `config.json` en la
 raíz. Si el material se sirve por HTTP, el player lo lee al cargar y aplica
-los cambios (colores, secciones, layout, links, quizzes, puntero) **sin
+los cambios (colores, secciones, layout, links, quizzes, puntero, lápiz) **sin
 reconvertir el .pptx**. Vía `file://` se usa la config embebida en `index.html`.
 
 ## Despliegue

@@ -4,12 +4,15 @@ from pathlib import Path
 import pytest
 
 from pptx2web.config import (
+    DEFAULT_PEN,
     available_themes,
     find_deck_config,
     load_deck_config,
     load_theme,
     resolve,
 )
+
+DEFAULT_PEN_COLORS = DEFAULT_PEN["colors"]
 from pptx2web.validate import ValidationError
 
 
@@ -168,6 +171,40 @@ def test_pointer_from_theme():
     cfg, _ = resolve({"theme": "default", "pointer": {"color": "#abc"}}, None, 5)
     assert cfg["pointer"]["color"] == "#abc"
     assert cfg["pointer"]["size"] == 18
+
+
+def test_pen_defaults():
+    cfg, warnings = resolve(None, None, 5)
+    pen = cfg["pen"]
+    assert pen["colors"] == ["#e3342f", "#ffd60a", "#39b54a", "#2f6fed", "#ffffff"]
+    assert pen["penSize"] == 3 and pen["highlighterSize"] == 18 and pen["eraserSize"] == 28
+    assert warnings == []
+
+
+def test_pen_custom_palette():
+    cfg, _ = resolve({"pen": {"colors": ["#000", "#fff"], "penSize": 5}}, None, 5)
+    assert cfg["pen"]["colors"] == ["#000", "#fff"]
+    assert cfg["pen"]["penSize"] == 5
+
+
+def test_pen_invalid_palette_falls_back():
+    cfg, warnings = resolve({"pen": {"colors": []}}, None, 5)
+    assert cfg["pen"]["colors"] == DEFAULT_PEN_COLORS
+    assert any("paleta por defecto" in w for w in warnings)
+
+    cfg, warnings = resolve({"pen": {"colors": "rojo"}}, None, 5)
+    assert cfg["pen"]["colors"] == DEFAULT_PEN_COLORS
+
+
+def test_pen_size_clamp_and_invalid():
+    cfg, warnings = resolve({"pen": {"penSize": 999, "eraserSize": 1}}, None, 5)
+    assert cfg["pen"]["penSize"] == 40   # clamp máx
+    assert cfg["pen"]["eraserSize"] == 4  # clamp mín
+    assert sum("fuera de rango" in w for w in warnings) == 2
+
+    cfg, warnings = resolve({"pen": {"penSize": "grueso"}}, None, 5)
+    assert cfg["pen"]["penSize"] == 3
+    assert any("pen.penSize inválido" in w for w in warnings)
 
 
 def test_load_deck_config_invalid_json(tmp_path: Path):

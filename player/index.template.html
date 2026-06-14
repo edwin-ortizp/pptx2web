@@ -44,11 +44,34 @@
         <img id="buf-b" class="slide-img" alt="" draggable="false">
         <div id="media-layer" class="media-layer"></div>
         <div id="link-layer" class="link-layer"></div>
+        <canvas id="draw-canvas" class="draw-layer"></canvas>
         <div id="quiz-layer" class="quiz-layer" hidden></div>
       </div>
       <button id="nav-prev" class="edge-nav edge-prev" aria-label="Anterior">&#8249;</button>
       <button id="nav-next" class="edge-nav edge-next" aria-label="Siguiente">&#8250;</button>
       <div id="laser-dot" class="laser-dot" hidden></div>
+
+      <!-- Barra de anotaciones temporales (visible solo en modo dibujo) -->
+      <div id="draw-tools" class="draw-tools" hidden>
+        <div class="draw-tools-row">
+          <button id="tool-pen" class="draw-tool" data-tool="pen" title="Lápiz" aria-label="Lápiz">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10z"/><path d="M9 4l3 3"/></svg>
+          </button>
+          <button id="tool-highlighter" class="draw-tool" data-tool="highlighter" title="Resaltador" aria-label="Resaltador">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l5-5 3 3-5 5H4z"/><path d="M2.5 14h6"/></svg>
+          </button>
+          <button id="tool-eraser" class="draw-tool" data-tool="eraser" title="Borrador" aria-label="Borrador">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13h8"/><path d="M7 13l-3.5-3.5a1.5 1.5 0 0 1 0-2L8 3a1.5 1.5 0 0 1 2 0l3 3a1.5 1.5 0 0 1 0 2L8.5 13"/></svg>
+          </button>
+          <span class="draw-sep"></span>
+          <div id="draw-swatches" class="draw-swatches"></div>
+          <span class="draw-sep"></span>
+          <button id="tool-clear" class="draw-tool" title="Limpiar lámina" aria-label="Limpiar lámina">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10"/><path d="M5 4l.5-1.5h5L11 4"/><path d="M4.5 4l.5 9h6l.5-9"/></svg>
+          </button>
+        </div>
+        <div class="draw-note">✎ Anotaciones temporales — se borran al recargar</div>
+      </div>
     </section>
 
     <!-- Panel de notas -->
@@ -73,6 +96,9 @@
           </button>
           <button id="btn-laser" class="tb-btn" title="Puntero láser (L)" aria-label="Puntero láser">
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.4" fill="currentColor" stroke="none"/><line x1="8" y1="1" x2="8" y2="3.2"/><line x1="8" y1="12.8" x2="8" y2="15"/><line x1="1" y1="8" x2="3.2" y2="8"/><line x1="12.8" y1="8" x2="15" y2="8"/></svg>
+          </button>
+          <button id="btn-draw" class="tb-btn" title="Lápiz / anotaciones temporales (D)" aria-label="Anotaciones">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10z"/><path d="M9 4l3 3"/></svg>
           </button>
         </div>
         <div class="toolbar-group toolbar-center">
