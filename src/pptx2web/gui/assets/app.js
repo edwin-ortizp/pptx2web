@@ -428,8 +428,42 @@ window.guiEvent = (event, payload) => {
     $("progress-wrap").hidden = true;
     $("convert-btn").disabled = false;
     alert("Error en la conversión:\n\n" + payload.message);
+  } else if (event === "update-available") {
+    showUpdateToast(payload);
+  } else if (event === "themes-updated") {
+    refreshThemes();
   }
 };
+
+// ───────────────────────── actualizaciones OTA ─────────────────────────
+
+let pendingUpdate = null;
+
+function showUpdateToast(update) {
+  pendingUpdate = update;
+  $("ota-msg").textContent = `Hay una nueva versión (${update.version}) disponible.`;
+  $("ota-apply").disabled = false;
+  $("ota-apply").textContent = "Actualizar ahora";
+  $("ota-toast").hidden = false;
+}
+
+async function applyUpdate() {
+  if (!pendingUpdate) return;
+  $("ota-apply").disabled = true;
+  $("ota-apply").textContent = "Descargando…";
+  const res = await api().apply_update(pendingUpdate);
+  // si tuvo éxito la app se cierra sola; si no, restauramos el botón
+  if (res && !res.ok) {
+    alert(res.error || "No se pudo actualizar");
+    $("ota-apply").disabled = false;
+    $("ota-apply").textContent = "Actualizar ahora";
+  }
+}
+
+async function refreshThemes() {
+  state.themes = await api().list_themes();
+  if (state.loaded) buildThemeCards();
+}
 
 function showResult(r) {
   state.lastResult = r;
@@ -527,6 +561,9 @@ function wire() {
   $("open-result").addEventListener("click", () => state.lastResult && api().open_url(state.lastResult.indexUrl));
   $("open-folder").addEventListener("click", () => state.lastResult && api().open_folder(state.lastResult.outDir));
 
+  $("ota-apply").addEventListener("click", applyUpdate);
+  $("ota-dismiss").addEventListener("click", () => { $("ota-toast").hidden = true; });
+
   renderDots();
 }
 
@@ -534,6 +571,7 @@ async function boot() {
   wire();
   state.themes = await api().list_themes();
   buildThemeCards();
+  api().run_update_check();  // OTA en segundo plano (no bloquea la UI)
 }
 
 window.addEventListener("pywebviewready", boot);

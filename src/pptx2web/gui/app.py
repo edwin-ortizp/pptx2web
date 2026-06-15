@@ -18,7 +18,7 @@ from pathlib import Path
 import webview
 
 from .. import config as config_mod
-from .. import images, metadata, packager, pipeline
+from .. import images, metadata, packager, pipeline, updater
 from ..renderer import PowerPointNotAvailableError, RenderError, render_slides
 from ..validate import ValidationError, validate_input
 
@@ -236,6 +236,40 @@ class Api:
             self._emit("error", {"message": str(exc)})
         except Exception as exc:  # noqa: BLE001 — superficie para la UI
             self._emit("error", {"message": f"Error inesperado: {exc}"})
+
+    # ── actualizaciones OTA ───────────────────────────────────────────────
+
+    def run_update_check(self, force: bool = False) -> None:
+        """Lanza el chequeo OTA en segundo plano. La UI lo invoca cuando está
+        lista (tras `pywebviewready`), de modo que `_emit` siempre encuentra el
+        puente `window.guiEvent`. Solo automático en modo congelado; `force`
+        permite dispararlo manualmente desde un botón."""
+        if not force and not updater.is_frozen():
+            return
+        threading.Thread(target=self._update_worker, daemon=True).start()
+
+    def _update_worker(self) -> None:
+        try:
+            updated = updater.check_themes()
+            if updated:
+                self._emit("themes-updated", {"themes": updated})
+        except Exception:  # noqa: BLE001 — OTA nunca debe tumbar la app
+            pass
+        try:
+            update = updater.check_app()
+            if update:
+                self._emit("update-available", update)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def apply_update(self, update: dict) -> dict:
+        """Descarga y lanza el instalador; si arranca, cierra la app para que
+        Inno Setup reemplace los archivos y la relance."""
+        if updater.apply_app_update(update):
+            if self.window:
+                self.window.destroy()
+            return {"ok": True}
+        return {"ok": False, "error": "No se pudo iniciar la actualización"}
 
     # ── abrir resultados ──────────────────────────────────────────────────
 

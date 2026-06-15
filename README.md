@@ -307,9 +307,74 @@ pytest            # los tests no requieren PowerPoint (corren en CI)
 Estructura: `src/pptx2web/` (conversor), `player/` (estático, sin build),
 `tests/` (fixtures generados con python-pptx).
 
+## Distribución para Windows (instalador + actualizaciones OTA)
+
+La app se empaqueta como un ejecutable autónomo (PyInstaller, **no requiere que el
+usuario instale Python ni dependencias**) y se entrega con un instalador
+por-usuario (Inno Setup) que **no pide permisos de administrador**. El usuario
+final solo necesita tener **Microsoft PowerPoint** instalado (la conversión lo usa
+vía COM); WebView2, que mueve la interfaz, ya viene preinstalado en Windows 11.
+
+### Compilar el distribuible
+
+Requisitos del equipo de build: `pip install pyinstaller` y, opcionalmente,
+[Inno Setup 6](https://jrsoftware.org/isdl.php) con `ISCC.exe` en el `PATH`.
+
+```powershell
+.\packaging\build.ps1
+```
+
+Produce:
+
+- `dist\pptx2web-gui\` — carpeta ejecutable (`pptx2web-gui.exe` + `_internal\` +
+  `player\` + `themes\`). Ya es funcional por sí sola.
+- `dist\pptx2web-setup-<version>.exe` — instalador de un solo doble clic (si hay
+  Inno Setup). Instala en `%LOCALAPPDATA%\pptx2web` y crea accesos directos.
+- `dist\release-assets\` — `themes-manifest.json` + temas, para el canal OTA.
+
+> Icono opcional: coloca `packaging\pptx2web.ico` antes de compilar.
+
+La versión es única: se lee de `__version__` en `src/pptx2web/__init__.py`. Súbela
+ahí antes de publicar una actualización de la app.
+
+### Actualizaciones OTA
+
+La app revisa actualizaciones al iniciar (en segundo plano, contra **GitHub
+Releases**) en dos canales independientes — ver [`src/pptx2web/updater.py`](src/pptx2web/updater.py):
+
+- **Temas** (lo más frecuente): sincroniza los `.json` de `themes\` desde el
+  manifiesto del release. Los temas nuevos aparecen al reiniciar **sin reinstalar
+  nada ni reconstruir el `.exe`**.
+- **App**: si hay una versión mayor publicada, muestra un aviso; al aceptar,
+  descarga el instalador y lo ejecuta en silencio (reemplaza archivos con la app
+  cerrada y la relanza).
+
+Configura el repo de distribución en las constantes `GITHUB_OWNER`/`GITHUB_REPO`
+de `updater.py` (o, sin recompilar, vía `%LOCALAPPDATA%\pptx2web\update.json` o las
+variables `PPTX2WEB_OTA_OWNER` / `PPTX2WEB_OTA_REPO` / `PPTX2WEB_OTA_TOKEN`).
+
+> **Recomendación de seguridad:** usa un **repo de distribución público aparte**
+> (solo instalador + temas; el código fuente sigue privado) para no embeber ningún
+> token en el `.exe`. Si el repo es privado, necesitarás un token de solo lectura
+> embebido, que es **extraíble** del binario.
+
+### Publicar una actualización
+
+- **Solo temas:** edita/añade `.json` en `themes\`, corre
+  `.\packaging\make-themes-manifest.ps1` y sube `dist\release-assets\*` (manifiesto
+  + temas) como assets de un release.
+- **App completa:** sube `__version__`, corre `.\packaging\build.ps1` y crea un
+  release nuevo con `pptx2web-setup-<version>.exe` + los assets de temas.
+
 ## Limitaciones conocidas
 
 - Solo Windows y solo PowerPoint de escritorio (decisión de diseño: máxima fidelidad).
+- **SmartScreen:** el ejecutable no está firmado, así que la primera ejecución
+  muestra "Windows protegió tu PC / editor desconocido". El usuario pulsa
+  "Más información → Ejecutar de todos modos". Se elimina con un certificado de
+  firma de código (OV/EV) a futuro.
+- **WebView2:** preinstalado en Windows 11. En Windows 10 muy antiguos puede faltar;
+  en ese caso instala el *Evergreen Bootstrapper* de Microsoft (gratuito).
 - `.pptx` con contraseña no son convertibles (quita la contraseña primero).
 - Animaciones intra-slide: se muestra el estado final del slide.
 - Media enlazada a archivos externos al `.pptx` no se empaqueta.
