@@ -141,6 +141,7 @@ input, select { font: inherit; }
   border-radius: 9px; padding: 3px; gap: 3px; }
 .seg button { padding: 8px 14px; border-radius: 7px; font-size: 13px; color: var(--muted); }
 .seg button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg-help { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
 
 /* themes */
 .theme-cards { display: flex; gap: 10px; flex-wrap: wrap; }

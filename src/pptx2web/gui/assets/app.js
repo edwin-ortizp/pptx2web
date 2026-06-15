@@ -15,7 +15,7 @@ const COLOR_VARS = [
   ["--line", "Bordes", "Líneas y separadores"],
 ];
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 const DEFAULT_PEN = { colors: ["#e3342f", "#ffd60a", "#39b54a", "#2f6fed", "#ffffff"],
   penSize: 3, highlighterSize: 18, eraserSize: 28 };
@@ -29,7 +29,7 @@ const state = {
   config: {
     theme: "default",
     colors: {},
-    layout: { sidebarSide: "left", panels: ["thumbnails"], defaultPanel: "thumbnails" },
+    layout: { sidebarSide: "left", panels: ["thumbnails"] },  // defaultPanel: lo decide resolve salvo que el usuario elija
     course: {},
     sections: [],
     pointer: { ...DEFAULT_POINTER },
@@ -122,9 +122,11 @@ async function loadDeck(path) {
   buildThemeCards();
   buildSwatches();
   renderSections();
-  renderInteractivity();
+  renderQuizzes();
+  renderLinks();
   syncCourseInputs();
   syncSideSeg();
+  syncDefaultPanelSeg();
   syncToolControls();
 
   goStep(1);
@@ -135,7 +137,7 @@ function mergeExistingConfig(cfg) {
   state.config = {
     theme: cfg.theme || "default",
     colors: cfg.colors || {},
-    layout: { sidebarSide: "left", panels: ["thumbnails"], defaultPanel: "thumbnails", ...(cfg.layout || {}) },
+    layout: { sidebarSide: "left", panels: ["thumbnails"], ...(cfg.layout || {}) },
     course: cfg.course || {},
     sections: cfg.sections || [],
     pointer: { ...DEFAULT_POINTER, ...(cfg.pointer || {}) },
@@ -198,6 +200,19 @@ function syncSideSeg() {
     b.classList.toggle("active", b.dataset.side === state.config.layout.sidebarSide));
 }
 
+function syncDefaultPanelSeg() {
+  // si el usuario no eligió, refleja lo que hará config.resolve: "sections"
+  // cuando hay secciones, si no "thumbnails"
+  const hasSections = state.config.sections.length > 0;
+  const current = state.config.layout.defaultPanel
+    || (hasSections ? "sections" : "thumbnails");
+  document.querySelectorAll("#default-panel-seg button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.panel === current);
+    if (b.dataset.panel === "sections") b.disabled = !hasSections;
+  });
+  $("default-panel-help").hidden = hasSections;
+}
+
 // ───────────────────────── paso 3: secciones ─────────────────────────
 
 function renderSections() {
@@ -235,6 +250,7 @@ function addSection() {
   const start = last ? Math.min((last.to || 0) + 1, state.deck.slideCount) : 1;
   state.config.sections.push({ title: "", from: start, to: state.deck.slideCount });
   renderSections();
+  syncDefaultPanelSeg();
 }
 
 async function validateAndPreview() {
@@ -252,6 +268,7 @@ async function validateAndPreview() {
     msg.hidden = true;
   }
   if (res.ok) schedulePreview();
+  syncDefaultPanelSeg(); // habilitar/inhabilitar "Contenido" según haya secciones
 }
 
 // ──────────────── apariencia: puntero láser + dibujo ────────────────
@@ -288,35 +305,50 @@ function renderPenSwatches() {
   });
 }
 
-// ──────────────── paso 4: interactividad (solo lectura) ────────────────
+// ──────────────── pasos 4 y 5: quizzes y enlaces (solo lectura) ────────────────
 
-function renderInteractivity() {
-  const wrap = $("interactivity");
+function renderQuizzes() {
+  const wrap = $("quizzes-list");
   wrap.innerHTML = "";
-  const withStuff = state.deck.slides.filter((s) => s.quiz || (s.links && s.links.length));
-  if (!withStuff.length) {
-    wrap.innerHTML = `<div class="inter-empty">No se detectaron quizzes ni enlaces.<br>
-      Los quizzes se definen en las <b>notas</b> de la lámina con un bloque <code>[quiz]</code>;
-      los enlaces son los <b>hipervínculos</b> que pongas en PowerPoint.</div>`;
+  const slides = state.deck.slides.filter((s) => s.quiz);
+  if (!slides.length) {
+    wrap.innerHTML = `<div class="inter-empty">No se detectaron quizzes.<br>
+      Se definen en las <b>notas</b> de la lámina con un bloque <code>[quiz]</code>.</div>`;
     return;
   }
-  for (const s of withStuff) {
+  for (const s of slides) {
     const card = document.createElement("div");
     card.className = "inter-slide";
     let html = `<div class="inter-head">Lámina ${s.index} — ${escapeHtml(s.title)}</div>`;
-    if (s.quiz) {
-      if (s.quiz.question) html += `<div class="inter-q">${escapeHtml(s.quiz.question)}</div>`;
-      html += `<div class="inter-opts">`;
-      for (const o of s.quiz.options) {
-        html += `<div class="inter-opt ${o.correct ? "ok" : ""}">
-          <span class="mark">${o.correct ? "✓" : "·"}</span>${escapeHtml(o.text)}</div>`;
-      }
-      html += `</div>`;
-      const fb = [s.quiz.feedbackOk && `✓ ${s.quiz.feedbackOk}`, s.quiz.feedbackKo && `✕ ${s.quiz.feedbackKo}`]
-        .filter(Boolean).join(" · ");
-      if (fb) html += `<div class="inter-fb">${escapeHtml(fb)}</div>`;
+    if (s.quiz.question) html += `<div class="inter-q">${escapeHtml(s.quiz.question)}</div>`;
+    html += `<div class="inter-opts">`;
+    for (const o of s.quiz.options) {
+      html += `<div class="inter-opt ${o.correct ? "ok" : ""}">
+        <span class="mark">${o.correct ? "✓" : "·"}</span>${escapeHtml(o.text)}</div>`;
     }
-    for (const lk of s.links || []) {
+    html += `</div>`;
+    const fb = [s.quiz.feedbackOk && `✓ ${s.quiz.feedbackOk}`, s.quiz.feedbackKo && `✕ ${s.quiz.feedbackKo}`]
+      .filter(Boolean).join(" · ");
+    if (fb) html += `<div class="inter-fb">${escapeHtml(fb)}</div>`;
+    card.innerHTML = html;
+    wrap.appendChild(card);
+  }
+}
+
+function renderLinks() {
+  const wrap = $("links-list");
+  wrap.innerHTML = "";
+  const slides = state.deck.slides.filter((s) => s.links && s.links.length);
+  if (!slides.length) {
+    wrap.innerHTML = `<div class="inter-empty">No se detectaron enlaces.<br>
+      Son los <b>hipervínculos</b> que pongas en PowerPoint (a una web o a otra lámina).</div>`;
+    return;
+  }
+  for (const s of slides) {
+    const card = document.createElement("div");
+    card.className = "inter-slide";
+    let html = `<div class="inter-head">Lámina ${s.index} — ${escapeHtml(s.title)}</div>`;
+    for (const lk of s.links) {
       const target = lk.href ? lk.href : (lk.slide ? `→ lámina ${lk.slide}` : "?");
       const type = lk.href ? "enlace" : "interno";
       html += `<div class="inter-link"><span class="lk-type">${type}</span>
@@ -459,6 +491,14 @@ function wire() {
     state.config.pen.colors.push("#ffffff");
     renderPenSwatches();
   });
+
+  document.querySelectorAll("#default-panel-seg button").forEach((b) =>
+    b.addEventListener("click", () => {
+      if (b.disabled) return;
+      state.config.layout.defaultPanel = b.dataset.panel;
+      syncDefaultPanelSeg();
+      schedulePreview();
+    }));
 
   $("add-section").addEventListener("click", addSection);
 

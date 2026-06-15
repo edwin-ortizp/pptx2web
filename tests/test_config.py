@@ -63,6 +63,22 @@ def test_sections_valid_and_layout_auto_enables_panel():
     assert warnings == []
 
 
+def test_explicit_default_panel_respected():
+    # el usuario elige explícitamente cada panel y debe respetarse
+    deck_cfg = {
+        "sections": [{"title": "A", "from": 1, "to": 10}],
+        "layout": {"defaultPanel": "sections"},
+    }
+    cfg, _ = resolve(deck_cfg, None, 10)
+    assert cfg["layout"]["defaultPanel"] == "sections"
+    assert "sections" in cfg["layout"]["panels"]
+
+    deck_cfg["layout"]["defaultPanel"] = "thumbnails"
+    cfg, _ = resolve(deck_cfg, None, 10)
+    assert cfg["layout"]["defaultPanel"] == "thumbnails"
+    assert "sections" in cfg["layout"]["panels"]  # sigue disponible
+
+
 def test_sections_gap_and_overlap_warn():
     deck_cfg = {
         "sections": [

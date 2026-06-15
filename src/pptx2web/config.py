@@ -108,16 +108,20 @@ def resolve(
             continue
         colors[key] = str(value)
 
+    sections = _validate_sections(cfg.get("sections"), slide_count, warnings)
+
     layout = {**DEFAULT_LAYOUT, **(theme.get("layout") or {}), **(cfg.get("layout") or {})}
+    # "sections" debe ser un panel disponible ANTES de validar, para que un
+    # defaultPanel="sections" explícito no se descarte por no estar aún en panels
+    if sections and "sections" not in (layout.get("panels") or []):
+        base = layout.get("panels") or list(DEFAULT_LAYOUT["panels"])
+        layout["panels"] = ["sections", *base]
     layout = _validate_layout(layout, warnings)
 
     explicit_default = any(
         "defaultPanel" in (src or {})
         for src in (theme.get("layout"), cfg.get("layout"))
     )
-    sections = _validate_sections(cfg.get("sections"), slide_count, warnings)
-    if sections and "sections" not in layout["panels"]:
-        layout["panels"] = ["sections", *layout["panels"]]
     if sections and not explicit_default:
         layout["defaultPanel"] = "sections"
     if not sections and "sections" in layout["panels"]:

@@ -107,17 +107,33 @@
         <div class="sections" id="sections"></div>
         <button class="ghost-btn" id="add-section">+ Agregar sección</button>
         <div class="notice" id="sections-msg" hidden></div>
+
+        <div class="field" style="margin-top:26px">
+          <label>Panel que se muestra primero</label>
+          <div class="seg" id="default-panel-seg">
+            <button data-panel="sections">Contenido</button>
+            <button data-panel="thumbnails">Láminas</button>
+          </div>
+          <p class="seg-help" id="default-panel-help">«Contenido» requiere tener al menos una sección.</p>
+        </div>
       </section>
 
-      <!-- Paso 4: Interactividad (solo lectura) -->
+      <!-- Paso 4: Quizzes (solo lectura) -->
       <section class="pane" data-pane="3">
-        <h1 class="pane-title">Interactividad</h1>
-        <p class="pane-sub">Quizzes y enlaces detectados en la presentación. Solo lectura — para revisar antes de publicar.</p>
-        <div id="interactivity"></div>
+        <h1 class="pane-title">Quizzes</h1>
+        <p class="pane-sub">Preguntas detectadas en las notas (<code>[quiz]</code>). Solo lectura — para revisar antes de publicar.</p>
+        <div id="quizzes-list"></div>
       </section>
 
-      <!-- Paso 5: Curso -->
+      <!-- Paso 5: Enlaces (solo lectura) -->
       <section class="pane" data-pane="4">
+        <h1 class="pane-title">Enlaces</h1>
+        <p class="pane-sub">Hipervínculos detectados en la presentación. Solo lectura — para revisar antes de publicar.</p>
+        <div id="links-list"></div>
+      </section>
+
+      <!-- Paso 6: Curso -->
+      <section class="pane" data-pane="5">
         <h1 class="pane-title">Datos del curso</h1>
         <p class="pane-sub">Nombre y logo que aparecen en el panel del player.</p>
         <div class="field">
@@ -134,8 +150,8 @@
         </div>
       </section>
 
-      <!-- Paso 6: Publicar -->
-      <section class="pane" data-pane="5">
+      <!-- Paso 7: Publicar -->
+      <section class="pane" data-pane="6">
         <h1 class="pane-title">Publicar</h1>
         <p class="pane-sub">Opciones de salida y conversión final.</p>
         <div class="grid2">
