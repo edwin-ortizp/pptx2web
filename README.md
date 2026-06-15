@@ -334,8 +334,12 @@ Produce:
 
 > Icono opcional: coloca `packaging\pptx2web.ico` antes de compilar.
 
-La versión es única: se lee de `__version__` en `src/pptx2web/__init__.py`. Súbela
-ahí antes de publicar una actualización de la app.
+La versión es única: se lee de `__version__` en `src/pptx2web/__init__.py`. Usa el
+esquema por **fecha año-primero** `AÑO.MES.DÍA` (ej. `2026.06.15`) y crea el release
+de GitHub con el tag **`v<version>`** (ej. `v2026.06.15`). El tag y `__version__`
+deben coincidir; `build.ps1` te recuerda el tag exacto y avisa si el formato no
+encaja. (No uses fechas día-primero como `15-06-2026`: el OTA las ordenaría mal y
+no detectaría las actualizaciones.)
 
 ### Actualizaciones OTA
 
@@ -363,8 +367,12 @@ variables `PPTX2WEB_OTA_OWNER` / `PPTX2WEB_OTA_REPO` / `PPTX2WEB_OTA_TOKEN`).
 - **Solo temas:** edita/añade `.json` en `themes\`, corre
   `.\packaging\make-themes-manifest.ps1` y sube `dist\release-assets\*` (manifiesto
   + temas) como assets de un release.
-- **App completa:** sube `__version__`, corre `.\packaging\build.ps1` y crea un
-  release nuevo con `pptx2web-setup-<version>.exe` + los assets de temas.
+- **App completa (checklist):**
+  1. Sube la fecha en `__version__` (`src/pptx2web/__init__.py`), ej. `"2026.07.01"`.
+  2. `.\packaging\build.ps1` → genera `dist\pptx2web-setup-2026.07.01.exe` y los
+     assets en `dist\release-assets\`. Anota el tag que imprime (`v2026.07.01`).
+  3. Crea el release en GitHub con ese tag y sube **4 archivos**: el instalador +
+     `themes-manifest.json` + cada tema (`default.json`, `certmind.json`, …).
 
 ## Limitaciones conocidas
 

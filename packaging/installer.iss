@@ -29,7 +29,10 @@ WizardStyle=modern
 ; Cierra la app si está abierta (lo necesita la auto-actualización OTA).
 CloseApplications=yes
 RestartApplications=no
+; Icono opcional: solo se usa si packaging\pptx2web.ico existe.
+#if FileExists(AddBackslash(SourcePath) + "pptx2web.ico")
 SetupIconFile=pptx2web.ico
+#endif
 
 [Languages]
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"

@@ -42,8 +42,8 @@ from . import __version__, config as config_mod
 log = logging.getLogger("pptx2web")
 
 # ── coordenadas del repo de distribución (editar antes de compilar) ──────────
-GITHUB_OWNER = "novapixel-org"
-GITHUB_REPO = "pptx2web-dist"
+GITHUB_OWNER = "edwin-ortizp"
+GITHUB_REPO = "pptx2web"
 GITHUB_TOKEN = ""  # vacío para repo público (recomendado). Ver docstring.
 
 THEMES_MANIFEST_ASSET = "themes-manifest.json"
