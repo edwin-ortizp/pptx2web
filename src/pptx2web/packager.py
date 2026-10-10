@@ -1,6 +1,8 @@
 """Ensamblado final: manifest, player hasheado, index.html y ZIP opcional."""
 from __future__ import annotations
 
+from .diagnostics import timed
+
 import datetime as _dt
 import json
 import logging
@@ -62,6 +64,7 @@ def build_manifest(
     }
 
 
+@timed("packager.package")
 def package(
     manifest: dict,
     out_dir: Path,

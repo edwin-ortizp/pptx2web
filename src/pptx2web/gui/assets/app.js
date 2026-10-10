@@ -39,6 +39,7 @@ const state = {
 };
 
 let previewTimer = null;
+const pendingUiErrors = [];
 
 // ───────────────────────── navegación de pasos ─────────────────────────
 
@@ -87,50 +88,68 @@ async function refreshPreview() {
 // ───────────────────────── paso 1: archivo ─────────────────────────
 
 async function pickPptx() {
-  const path = await api().pick_pptx();
-  if (path) loadDeck(path);
+  const button = $("pick-pptx");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const path = await api().pick_pptx();
+    if (path) await loadDeck(path);
+  } catch (error) {
+    reportError(error);
+    alert("No se pudo completar la operación. Consulta la carpeta de diagnóstico.");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadDeck(path) {
-  $("preview-loading").hidden = false;
-  $("preview-empty").hidden = true;
-  $("preview-tag").textContent = "renderizando…";
-  const res = await api().load_deck(path);
-  $("preview-loading").hidden = true;
-  if (!res || !res.ok) {
+  try {
+    $("preview-loading").hidden = false;
+    $("preview-empty").hidden = true;
+    $("preview-tag").textContent = "renderizando…";
+    const res = await api().load_deck(path);
+    $("preview-loading").hidden = true;
+    if (!res || !res.ok) {
+      $("preview-tag").textContent = "error";
+      alert(res ? res.error : "No se pudo cargar el archivo");
+      return;
+    }
+    state.deck = res;
+    state.loaded = true;
+
+    // si el .pptx ya traía config, adoptarla
+    if (res.config) mergeExistingConfig(res.config);
+
+    $("di-title").textContent = res.title;
+    $("di-count").textContent = res.slideCount;
+    $("deck-info").hidden = false;
+    if (res.configPath) {
+      $("di-config").textContent = res.configPath.split(/[\\/]/).pop();
+      $("di-config-row").hidden = false;
+    }
+    $("badge-title").textContent = res.title;
+    $("badge-sub").textContent = `${res.slideCount} láminas`;
+    $("deck-badge").hidden = false;
+
+    buildThemeCards();
+    buildSwatches();
+    renderSections();
+    renderQuizzes();
+    renderLinks();
+    syncCourseInputs();
+    syncSideSeg();
+    syncDefaultPanelSeg();
+    syncToolControls();
+
+    goStep(1);
+    await refreshPreview();
+  } catch (error) {
     $("preview-tag").textContent = "error";
-    alert(res ? res.error : "No se pudo cargar el archivo");
-    return;
+    reportError(error);
+    alert("No se pudo cargar la presentación. Consulta la carpeta de diagnóstico.");
+  } finally {
+    $("preview-loading").hidden = true;
   }
-  state.deck = res;
-  state.loaded = true;
-
-  // si el .pptx ya traía config, adoptarla
-  if (res.config) mergeExistingConfig(res.config);
-
-  $("di-title").textContent = res.title;
-  $("di-count").textContent = res.slideCount;
-  $("deck-info").hidden = false;
-  if (res.configPath) {
-    $("di-config").textContent = res.configPath.split(/[\\/]/).pop();
-    $("di-config-row").hidden = false;
-  }
-  $("badge-title").textContent = res.title;
-  $("badge-sub").textContent = `${res.slideCount} láminas`;
-  $("deck-badge").hidden = false;
-
-  buildThemeCards();
-  buildSwatches();
-  renderSections();
-  renderQuizzes();
-  renderLinks();
-  syncCourseInputs();
-  syncSideSeg();
-  syncDefaultPanelSeg();
-  syncToolControls();
-
-  goStep(1);
-  refreshPreview();
 }
 
 function mergeExistingConfig(cfg) {
@@ -369,29 +388,54 @@ function syncCourseInputs() {
 }
 
 async function pickLogo() {
-  const path = await api().pick_logo();
-  if (path) {
-    state.config.course.logo = path;
-    syncCourseInputs();
-    schedulePreview();
+  const button = $("pick-logo");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const path = await api().pick_logo();
+    if (path) {
+      state.config.course.logo = path;
+      syncCourseInputs();
+      schedulePreview();
+    }
+  } catch (error) {
+    reportError(error);
+    alert("No se pudo completar la operación. Consulta la carpeta de diagnóstico.");
+  } finally {
+    button.disabled = false;
   }
 }
 
 // ───────────────────────── paso 5: publicar ─────────────────────────
 
+function setConverting(busy) {
+  $("convert-btn").disabled = busy;
+  $("pick-pptx").disabled = busy;
+}
+
 async function convert() {
-  $("convert-btn").disabled = true;
+  if ($("convert-btn").disabled) return;
+  setConverting(true);
   $("result").hidden = true;
   $("progress-wrap").hidden = false;
   setProgress(4, "Iniciando…");
-  await api().convert({
-    config: state.config,
-    scale: parseFloat(state.output.scale),
-    quality: state.output.quality,
-    format: state.output.format,
-    zip: state.output.zip,
-    outDir: state.output.outDir,
-  });
+  try {
+    const result = await api().convert({
+      config: state.config,
+      scale: parseFloat(state.output.scale),
+      quality: state.output.quality,
+      format: state.output.format,
+      zip: state.output.zip,
+      outDir: state.output.outDir,
+    });
+    if (!result || !result.started) throw new Error(result?.error || "No se pudo iniciar la conversión");
+  } catch (error) {
+    reportError(error);
+    alert(error.message);
+    $("progress-wrap").hidden = true;
+  } finally {
+    if ($("progress-wrap").hidden) setConverting(false);
+  }
 }
 
 const STAGE_LABELS = {
@@ -423,10 +467,10 @@ window.guiEvent = (event, payload) => {
   } else if (event === "done") {
     setProgress(100, "Completado");
     showResult(payload);
-    $("convert-btn").disabled = false;
+    setConverting(false);
   } else if (event === "error") {
     $("progress-wrap").hidden = true;
-    $("convert-btn").disabled = false;
+    setConverting(false);
     alert("Error en la conversión:\n\n" + payload.message);
   } else if (event === "update-available") {
     showUpdateToast(payload);
@@ -448,15 +492,26 @@ function showUpdateToast(update) {
 }
 
 async function applyUpdate() {
-  if (!pendingUpdate) return;
-  $("ota-apply").disabled = true;
-  $("ota-apply").textContent = "Descargando…";
-  const res = await api().apply_update(pendingUpdate);
-  // si tuvo éxito la app se cierra sola; si no, restauramos el botón
-  if (res && !res.ok) {
-    alert(res.error || "No se pudo actualizar");
-    $("ota-apply").disabled = false;
-    $("ota-apply").textContent = "Actualizar ahora";
+  const button = $("ota-apply");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    if (!pendingUpdate) return;
+    $("ota-apply").disabled = true;
+    $("ota-apply").textContent = "Descargando…";
+    const res = await api().apply_update(pendingUpdate);
+    // si tuvo éxito la app se cierra sola; si no, restauramos el botón
+    if (res && !res.ok) {
+      alert(res.error || "No se pudo actualizar");
+      $("ota-apply").disabled = false;
+      $("ota-apply").textContent = "Actualizar ahora";
+    }
+  } catch (error) {
+    reportError(error);
+    alert("No se pudo completar la operación. Consulta la carpeta de diagnóstico.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Actualizar ahora";
   }
 }
 
@@ -554,8 +609,14 @@ function wire() {
   $("opt-format").addEventListener("change", (e) => { state.output.format = e.target.value; });
   $("opt-zip").addEventListener("change", (e) => { state.output.zip = e.target.checked; });
   $("pick-out").addEventListener("click", async () => {
-    const d = await api().pick_output_dir();
-    if (d) { state.output.outDir = d; $("out-name").textContent = d; }
+    const button = $("pick-out");
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const d = await api().pick_output_dir();
+      if (d) { state.output.outDir = d; $("out-name").textContent = d; }
+    } catch (error) { reportError(error); alert("No se pudo abrir el selector de carpeta."); }
+    finally { button.disabled = false; }
   });
   $("convert-btn").addEventListener("click", convert);
   $("open-result").addEventListener("click", () => state.lastResult && api().open_url(state.lastResult.indexUrl));
@@ -564,10 +625,34 @@ function wire() {
   $("ota-apply").addEventListener("click", applyUpdate);
   $("ota-dismiss").addEventListener("click", () => { $("ota-toast").hidden = true; });
 
+  $("show-diagnostics").addEventListener("click", () => {
+    $("diagnostics-dialog").showModal();
+    refreshDiagnostics();
+  });
+  $("close-diagnostics").addEventListener("click", () => $("diagnostics-dialog").close());
+  $("refresh-diagnostics").addEventListener("click", refreshDiagnostics);
+  $("copy-diagnostics").addEventListener("click", async () => {
+    const field = $("diagnostics-content");
+    try {
+      await navigator.clipboard.writeText(field.value);
+      $("diagnostics-status").textContent = "Logs copiados. Puedes pegarlos en un mensaje a soporte.";
+    } catch (error) {
+      field.focus();
+      field.select();
+      $("diagnostics-status").textContent = "Pulsa Ctrl+C para copiar los logs seleccionados.";
+    }
+  });
+  $("open-diagnostics").addEventListener("click", async () => {
+    const result = await api().open_diagnostics();
+    if (!result.ok) alert("Los logs están en: " + result.path);
+  });
   renderDots();
 }
 
 async function boot() {
+  setInterval(() => { api().diagnostic_heartbeat().catch(() => {}); }, 2000);
+  api().diagnostic_heartbeat().catch(() => {});
+  pendingUiErrors.splice(0).forEach(reportError);
   wire();
   state.themes = await api().list_themes();
   buildThemeCards();
@@ -575,3 +660,32 @@ async function boot() {
 }
 
 window.addEventListener("pywebviewready", boot);
+
+function reportError(error) {
+  if (!window.pywebview?.api) {
+    if (pendingUiErrors.length < 20) pendingUiErrors.push(error);
+    return;
+  }
+  Promise.resolve(api().report_ui_error(String(error?.message || error), String(error?.stack || ""))).catch(() => {});
+}
+window.addEventListener("error", event => reportError(event.error || event.message));
+window.addEventListener("unhandledrejection", event => reportError(event.reason));
+
+async function refreshDiagnostics() {
+  const button = $("refresh-diagnostics");
+  if (button.disabled) return;
+  button.disabled = true;
+  $("diagnostics-status").textContent = "Leyendo logs…";
+  try {
+    const result = await api().read_diagnostics();
+    if (!result.ok) throw new Error(result.error);
+    $("diagnostics-content").value = result.text;
+    $("diagnostics-status").textContent = result.session + (result.truncated ? " · Últimos 256 KB. El historial completo está en la carpeta." : " · Sesión actual");
+    $("diagnostics-content").scrollTop = $("diagnostics-content").scrollHeight;
+  } catch (error) {
+    reportError(error);
+    $("diagnostics-status").textContent = "No se pudieron leer los logs. Usa Abrir carpeta.";
+  } finally {
+    button.disabled = false;
+  }
+}

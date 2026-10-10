@@ -26,6 +26,8 @@ a ese repo; aun así es extraíble del binario.
 """
 from __future__ import annotations
 
+from .diagnostics import timed
+
 import hashlib
 import json
 import logging
@@ -70,7 +72,7 @@ def _settings() -> dict[str, str]:
                 if data.get(key):
                     cfg[key] = str(data[key])
         except (json.JSONDecodeError, OSError) as exc:
-            log.warning("update.json ilegible: %s", exc)
+            log.warning("update.json ilegible: %s", exc, exc_info=True)
     cfg["owner"] = os.environ.get("PPTX2WEB_OTA_OWNER", cfg["owner"])
     cfg["repo"] = os.environ.get("PPTX2WEB_OTA_REPO", cfg["repo"])
     cfg["token"] = os.environ.get("PPTX2WEB_OTA_TOKEN", cfg["token"])
@@ -111,7 +113,7 @@ def _latest_release(cfg: dict[str, str]) -> dict | None:
     try:
         return _fetch_json(url, cfg["token"])
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        log.info("OTA: no se pudo consultar el último release: %s", exc)
+        log.info("OTA: no se pudo consultar el último release: %s", exc, exc_info=True)
         return None
 
 
@@ -171,6 +173,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
             os.unlink(tmp)
 
 
+@timed("updater.check_themes")
 def check_themes() -> list[str]:
     """Sincroniza los temas con el manifiesto del último release.
 
@@ -188,7 +191,7 @@ def check_themes() -> list[str]:
     try:
         manifest = json.loads(_asset_download(manifest_asset, cfg["token"]).decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        log.info("OTA temas: manifiesto ilegible: %s", exc)
+        log.info("OTA temas: manifiesto ilegible: %s", exc, exc_info=True)
         return []
 
     wanted: dict[str, str] = manifest.get("themes", {})
@@ -207,7 +210,7 @@ def check_themes() -> list[str]:
         try:
             data = _asset_download(asset, cfg["token"])
         except (urllib.error.URLError, OSError) as exc:
-            log.info("OTA temas: fallo al bajar %s: %s", name, exc)
+            log.info("OTA temas: fallo al bajar %s: %s", name, exc, exc_info=True)
             continue
         if want_sha and _sha256(data) != want_sha:
             log.warning("OTA temas: sha256 no coincide para %s; se ignora", name)
@@ -220,6 +223,7 @@ def check_themes() -> list[str]:
 
 # ── canal de app ─────────────────────────────────────────────────────────────
 
+@timed("updater.check_app")
 def check_app() -> dict | None:
     """Si hay una versión más nueva publicada, devuelve datos del update.
 
@@ -244,6 +248,7 @@ def check_app() -> dict | None:
     }
 
 
+@timed("updater.apply_app_update")
 def apply_app_update(update: dict) -> bool:
     """Descarga el instalador y lo lanza en silencio; el llamador debe cerrar la
     app a continuación para que Inno Setup pueda reemplazar los archivos.
@@ -257,14 +262,14 @@ def apply_app_update(update: dict) -> bool:
     try:
         data = _fetch_bytes(update["assetUrl"], cfg["token"])
     except (urllib.error.URLError, OSError, KeyError) as exc:
-        log.warning("OTA app: fallo al descargar instalador: %s", exc)
+        log.warning("OTA app: fallo al descargar instalador: %s", exc, exc_info=True)
         return False
 
     setup_path = Path(tempfile.gettempdir()) / update.get("assetName", "pptx2web-setup.exe")
     try:
         setup_path.write_bytes(data)
     except OSError as exc:
-        log.warning("OTA app: no se pudo guardar el instalador: %s", exc)
+        log.warning("OTA app: no se pudo guardar el instalador: %s", exc, exc_info=True)
         return False
 
     # /SILENT muestra solo la barra de progreso; el instalador relanza la app.
@@ -274,6 +279,6 @@ def apply_app_update(update: dict) -> bool:
             close_fds=True,
         )
     except OSError as exc:
-        log.warning("OTA app: no se pudo lanzar el instalador: %s", exc)
+        log.warning("OTA app: no se pudo lanzar el instalador: %s", exc, exc_info=True)
         return False
     return True

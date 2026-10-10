@@ -1,6 +1,8 @@
 """Extracción de metadatos con python-pptx (sin COM, testeable en CI)."""
 from __future__ import annotations
 
+from .diagnostics import timed
+
 import html
 import logging
 from pathlib import Path
@@ -32,6 +34,7 @@ NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _DIRECT_TRANSITIONS = {"fade", "push", "wipe", "split", "cut"}
 
 
+@timed("metadata.extract")
 def extract(pptx_path: Path) -> Deck:
     prs = Presentation(str(pptx_path))
 

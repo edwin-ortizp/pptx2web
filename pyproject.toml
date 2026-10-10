@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pptx2web"
-version = "0.1.0"
+version = "2026.10.09"
 description = "Publicador local de PowerPoint a experiencia web (Windows, COM)"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,7 +19,7 @@ gui = ["pywebview>=5"]
 
 [project.scripts]
 pptx2web = "pptx2web.cli:main"
-pptx2web-gui = "pptx2web.gui.app:main"
+pptx2web-gui = "pptx2web.diagnostics:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

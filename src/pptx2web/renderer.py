@@ -11,6 +11,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from .models import RenderedSlide
+from .diagnostics import operation, timed
 
 log = logging.getLogger("pptx2web")
 
@@ -42,6 +43,7 @@ def read_slide_size_pt(pptx_path: Path) -> tuple[float, float]:
     return cx / EMU_PER_PT, cy / EMU_PER_PT
 
 
+@timed("powerpoint.render")
 def render_slides(
     pptx_path: Path, out_dir: Path, scale: float = 2.0, on_slide=None
 ) -> list[RenderedSlide]:
@@ -78,7 +80,8 @@ def render_slides(
     pres = None
     try:
         try:
-            powerpoint = win32com.client.DispatchEx("PowerPoint.Application")
+            with operation("powerpoint.start"):
+                powerpoint = win32com.client.DispatchEx("PowerPoint.Application")
         except com_error as exc:
             raise PowerPointNotAvailableError(
                 "No se pudo iniciar PowerPoint vía COM. Verifica que Microsoft "
@@ -86,7 +89,8 @@ def render_slides(
             ) from exc
 
         try:
-            pres = _open_presentation(powerpoint, pptx_path)
+            with operation("powerpoint.open"):
+                pres = _open_presentation(powerpoint, pptx_path)
         except com_error as exc:
             raise RenderError(
                 f"PowerPoint no pudo abrir el archivo: {pptx_path}. "
@@ -101,7 +105,8 @@ def render_slides(
         rendered: list[RenderedSlide] = []
         for i in range(1, total + 1):
             png_path = out_dir / f"slide-{i:03d}.png"
-            _export_with_retry(pres.Slides(i), png_path, width_px, height_px, i)
+            with operation("powerpoint.export"):
+                _export_with_retry(pres.Slides(i), png_path, width_px, height_px, i)
             log.info("[%d/%d] %s", i, total, png_path.name)
             if on_slide:
                 on_slide(i, total)
@@ -116,14 +121,16 @@ def render_slides(
         # Cierre garantizado: nunca dejar un POWERPNT.EXE huérfano.
         try:
             if pres is not None:
-                pres.Close()
+                with operation("powerpoint.close"):
+                    pres.Close()
         except Exception:
-            pass
+            log.exception("PowerPoint cleanup failed")
         try:
             if powerpoint is not None:
-                powerpoint.Quit()
+                with operation("powerpoint.quit"):
+                    powerpoint.Quit()
         except Exception:
-            pass
+            log.exception("PowerPoint cleanup failed")
         pythoncom.CoUninitialize()
 
 
@@ -137,6 +144,7 @@ def _open_presentation(powerpoint, pptx_path: Path):
             str(pptx_path), ReadOnly=True, Untitled=False, WithWindow=False
         )
     except com_error:
+        log.exception("Hidden open failed; retrying with minimized window")
         powerpoint.Visible = True
         powerpoint.WindowState = 2  # ppWindowMinimized
         return powerpoint.Presentations.Open(

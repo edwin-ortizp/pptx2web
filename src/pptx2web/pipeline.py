@@ -6,6 +6,8 @@ front-ends delgados sobre `convert()`.
 """
 from __future__ import annotations
 
+from .diagnostics import timed
+
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -34,6 +36,7 @@ class Summary:
     warnings: list[str] = field(default_factory=list)
 
 
+@timed("pipeline.convert")
 def convert(
     *,
     pptx_path: Path,

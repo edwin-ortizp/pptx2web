@@ -386,3 +386,87 @@ variables `PPTX2WEB_OTA_OWNER` / `PPTX2WEB_OTA_REPO` / `PPTX2WEB_OTA_TOKEN`).
 - `.pptx` con contraseña no son convertibles (quita la contraseña primero).
 - Animaciones intra-slide: se muestra el estado final del slide.
 - Media enlazada a archivos externos al `.pptx` no se empaqueta.
+
+## Diagnóstico de errores y bloqueos
+
+La GUI guarda automáticamente logs locales en `%LOCALAPPDATA%\pptx2web\logs`.
+Puedes abrirlos con **Abrir carpeta de diagnóstico**, junto a la vista previa,
+o pegar esa ruta en el Explorador incluso si el programa no abre.
+Si la carpeta no es escribible se usa `%TEMP%\pptx2web-diagnostics\logs`;
+el botón muestra la ubicación efectiva si no consigue abrirla.
+
+Cada ejecución tiene un identificador y archivos `session-*.log`, con fecha,
+proceso, hilo y versiones del entorno. Se conservan diez sesiones, con un
+máximo de 5 MB por archivo y dos respaldos `.1`/`.2` por sesión.
+Se registran inicio, resultado y duración de operaciones, errores con sus
+trazas, nombres/tamaños de archivos elegidos y las etapas de PowerPoint.
+No se copian documentos ni configuraciones completas ni se envían logs
+por Internet. Las trazas y los mensajes de error pueden contener rutas locales.
+
+Cuando aparezca **No responde**, si es posible deja la aplicación abierta
+unos 30 segundos antes de cerrarla. El supervisor registra las operaciones
+pendientes y las pilas Python tras 15 segundos de falta de respuesta detectada,
+con un máximo de una captura por minuto. Un selector abierto durante 30
+segundos también genera una captura, marcada como espera que puede ser normal.
+El supervisor consulta Windows sin esperar al hilo de la ventana y recibe
+además una señal periódica de JavaScript. Registra la recuperación cuando ocurre.
+Un bloqueo dentro de Windows/WebView2 puede requerir además un volcado nativo;
+las capturas incluidas aquí muestran hilos Python.
+
+Para reportar un fallo, indica la hora aproximada y lo que estabas haciendo,
+y comparte el log de esa sesión junto con sus respaldos si existen.
+La instrumentación permite investigar el bloqueo; no garantiza su corrección.
+
+Validación automatizada: creación/retención/rotación, carpeta alternativa,
+inicialización idempotente, resultados/cancelación/errores de selectores simulados,
+tiempos y trazas, señales ausentes, recuperación y límites de capturas.
+La repetición manual de aperturas/cancelaciones del selector nativo y la
+validación del ejecutable sin consola deben realizarse en Windows con la
+versión distribuida; los selectores simulados no sustituyen esa comprobación.
+
+En la interfaz, **Ver logs** abre un panel con los registros de la sesión actual,
+incluidos sus respaldos rotados. **Actualizar** vuelve a leerlos y **Copiar logs**
+permite pegarlos en un mensaje a soporte. Si el portapapeles no está disponible,
+se selecciona el texto para copiarlo con Ctrl+C. El panel muestra como máximo
+los últimos 256 KB para mantener la interfaz ágil; **Abrir carpeta** permite
+recuperar el historial completo. Los logs se muestran como texto literal.
+
+## Protección y rendimiento de exportación
+
+La GUI captura una copia de la ruta, configuración y opciones al iniciar una
+conversión. Mientras se carga o convierte una presentación, el backend rechaza
+otras cargas/conversiones; los botones de selección y publicación se restauran
+al finalizar, fallar o rechazarse el inicio. La configuración se guarda junto
+al PPTX original de esa conversión. Los errores capturados por el trabajador
+terminan registrados como `status=error`, incluidos errores de guardado.
+
+Los registros `image.result` separan lectura, codificación, generación de
+miniatura y escritura/finalización, e incluyen índice, dimensiones, formato,
+calidad y tamaño. La codificación se realiza en memoria para medirla aparte de
+la escritura. Un error registra `image.error` con la lámina y fase afectada.
+
+AVIF usa hasta dos trabajadores de imágenes. PowerPoint, WebP y PNG siguen
+secuenciales; calidad, resolución, `speed=6` y parámetros de miniatura se
+conservan. Los resultados y el progreso se entregan en orden. No se agrega caché.
+
+Comparación del 9 de octubre de 2026: Python 3.13.15, Pillow 12.0.0, seis CPU
+lógicas. Se usaron 20 láminas sintéticas de 1280×720, con una imagen de ruido
+en la lámina 17, AVIF calidad 82. Tres ejecuciones por modo, intercaladas,
+excluyendo generación/copia de entradas y comparación de resultados:
+
+| Trabajadores | Ejecución 1 | Ejecución 2 | Ejecución 3 | Mediana |
+|---|---:|---:|---:|---:|
+| 1 | 17,365 s | 18,211 s | 19,643 s | 18,211 s |
+| 2 | 9,302 s | 11,655 s | 10,047 s | 10,047 s |
+
+La reducción de la mediana de procesamiento de imágenes fue **44,83 %**,
+superior al umbral del 10 %. Todas las imágenes y miniaturas fueron idénticas
+byte por byte, con el mismo orden. Esto no mide la exportación completa ni
+confirma el rendimiento del PPTX original, que no se encontró en las ubicaciones
+revisadas. La causa de su demora en la lámina 17 sigue pendiente de las nuevas
+mediciones; no se realizó una exportación real con PowerPoint en esta validación.
+
+Para repetir la comparación, usa una carpeta nueva:
+`python tests/benchmark_images.py --out <carpeta-temporal-nueva>`.
+El script genera las entradas, compara ambos modos tres veces y escribe
+`result.json`; sus artefactos son datos de prueba y pueden borrarse después.

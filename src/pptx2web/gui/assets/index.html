@@ -219,6 +219,7 @@
   <aside class="preview">
     <div class="preview-head">
       <span>Vista previa en vivo</span>
+      <button class="ghost-btn" id="show-diagnostics">Ver logs</button>
       <span class="preview-tag" id="preview-tag">esperando archivo</span>
     </div>
     <div class="preview-stage">
@@ -232,6 +233,20 @@
   </aside>
 
 </div>
+<dialog id="diagnostics-dialog" aria-labelledby="diagnostics-title">
+  <div class="diagnostics-toolbar">
+    <h2 id="diagnostics-title">Logs de diagnóstico</h2>
+    <button class="ghost-btn" id="close-diagnostics">Cerrar</button>
+  </div>
+  <p>Si necesitas ayuda, copia estos logs y envíalos a soporte. Pueden incluir rutas locales.</p>
+  <div class="diagnostics-toolbar">
+    <button class="ghost-btn" id="refresh-diagnostics">Actualizar</button>
+    <button class="cta sm" id="copy-diagnostics">Copiar logs</button>
+    <button class="ghost-btn" id="open-diagnostics">Abrir carpeta</button>
+  </div>
+  <p id="diagnostics-status" role="status" aria-live="polite"></p>
+  <textarea id="diagnostics-content" readonly spellcheck="false" aria-label="Logs de la sesión"></textarea>
+</dialog>
 <script src="app.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ lógica de conversión ni de validación.
 """
 from __future__ import annotations
 
+import copy
 import functools
 import json
 import shutil
@@ -14,6 +15,9 @@ import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+from .. import __version__, diagnostics
+diagnostics.initialize()
 
 import webview
 
@@ -44,7 +48,8 @@ class Api:
     """Expuesta a la UI como `window.pywebview.api.*`."""
 
     def __init__(self) -> None:
-        self.window: webview.Window | None = None
+        self._operation_lock = threading.Lock()
+        self._window: webview.Window | None = None
         self._deck_path: Path | None = None
         self._deck = None
         self._assets: list = []
@@ -54,21 +59,32 @@ class Api:
 
     # ── selección de archivos (diálogos nativos) ──────────────────────────
 
+    @diagnostics.timed("dialog.pptx")
     def pick_pptx(self) -> str | None:
-        res = self.window.create_file_dialog(
-            _file_dialog("open"), file_types=("PowerPoint (*.pptx)",)
-        )
-        return res[0] if res else None
+        if not self._operation_lock.acquire(blocking=False):
+            raise RuntimeError("Hay una carga o conversión en curso")
+        try:
+            res = self._window.create_file_dialog(
+                _file_dialog("open"), file_types=("PowerPoint (*.pptx)",)
+            )
+            diagnostics.selected_file(res[0] if res else None)
+            return res[0] if res else None
+        finally:
+            self._operation_lock.release()
 
+    @diagnostics.timed("dialog.logo")
     def pick_logo(self) -> str | None:
-        res = self.window.create_file_dialog(
+        res = self._window.create_file_dialog(
             _file_dialog("open"),
             file_types=("Imágenes (*.png;*.jpg;*.jpeg;*.svg;*.webp)",),
         )
+        diagnostics.selected_file(res[0] if res else None)
         return res[0] if res else None
 
+    @diagnostics.timed("dialog.folder")
     def pick_output_dir(self) -> str | None:
-        res = self.window.create_file_dialog(_file_dialog("folder"))
+        res = self._window.create_file_dialog(_file_dialog("folder"))
+        diagnostics.selected_file(res[0] if res else None)
         return res[0] if res else None
 
     # ── temas y validación ────────────────────────────────────────────────
@@ -93,27 +109,41 @@ class Api:
             )
             return {"ok": True, "warnings": warnings, "resolved": resolved}
         except ValidationError as exc:
+            diagnostics.log.exception("Validation failed")
             return {"ok": False, "error": str(exc), "warnings": []}
 
     # ── carga del deck + pre-render para preview ──────────────────────────
 
+    @diagnostics.timed("deck.load")
     def load_deck(self, path: str) -> dict:
+        if not self._operation_lock.acquire(blocking=False):
+            return {"ok": False, "error": "Hay una carga o conversión en curso"}
+        try:
+            return self._load_deck(path)
+        finally:
+            self._operation_lock.release()
+
+    def _load_deck(self, path: str) -> dict:
         """Valida, extrae metadatos y pre-renderiza a baja resolución para el
         preview. Devuelve info del deck + config existente si la hay."""
         try:
             pptx_path = validate_input(Path(path))
         except ValidationError as exc:
+            diagnostics.log.exception("Validation failed")
             return {"ok": False, "error": str(exc)}
 
         self._deck_path = pptx_path
-        self._deck = metadata.extract(pptx_path)
+        with diagnostics.operation("deck.metadata"):
+            self._deck = metadata.extract(pptx_path)
         self._reset_preview()
 
         try:
             self._prerender_preview()
         except PowerPointNotAvailableError as exc:
+            diagnostics.log.exception("PowerPoint unavailable")
             return {"ok": False, "error": str(exc)}
         except RenderError as exc:
+            diagnostics.log.exception("Render failed")
             return {"ok": False, "error": str(exc)}
 
         existing = config_mod.find_deck_config(pptx_path)
@@ -137,6 +167,7 @@ class Api:
             "deckPath": str(pptx_path),
         }
 
+    @diagnostics.timed("preview.render")
     def _prerender_preview(self) -> None:
         tmp_png = Path(tempfile.mkdtemp(prefix="pptx2web-prev-png-"))
         try:
@@ -148,6 +179,7 @@ class Api:
         finally:
             shutil.rmtree(tmp_png, ignore_errors=True)
 
+    @diagnostics.timed("preview.package")
     def build_preview(self, cfg: dict) -> dict:
         """Re-empaqueta el preview con la config actual (sin re-renderizar) y
         devuelve una URL HTTP local para el iframe. Se sirve por http (no file://)
@@ -160,6 +192,7 @@ class Api:
                 cfg, cfg.get("theme"), self._deck.slide_count
             )
         except ValidationError as exc:
+            diagnostics.log.exception("Validation failed")
             return {"ok": False, "error": str(exc)}
         manifest = packager.build_manifest(self._deck, self._assets, self._slide_px)
         packager.package(
@@ -185,7 +218,10 @@ class Api:
     def save_config(self, cfg: dict) -> dict:
         if not self._deck_path:
             return {"ok": False, "error": "No hay deck cargado"}
-        path = self._deck_path.with_name(f"{self._deck_path.stem}.config.json")
+        return self._save_config_for(self._deck_path, cfg)
+
+    def _save_config_for(self, deck_path: Path, cfg: dict) -> dict:
+        path = deck_path.with_name(f"{deck_path.stem}.config.json")
         path.write_text(
             json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -194,34 +230,44 @@ class Api:
     # ── conversión real (en hilo, con progreso por eventos) ───────────────
 
     def convert(self, opts: dict) -> dict:
-        if not self._deck_path:
-            return {"ok": False, "error": "No hay deck cargado"}
-        threading.Thread(
-            target=self._convert_worker, args=(opts,), daemon=True
-        ).start()
-        return {"started": True}
-
-    def _convert_worker(self, opts: dict) -> None:
-        cfg = opts.get("config") or {}
-        out = opts.get("outDir")
-        out_dir = Path(out) if out else self._deck_path.parent / f"{self._deck_path.stem}-web"
+        if not self._operation_lock.acquire(blocking=False):
+            return {"ok": False, "error": "Hay una carga o conversión en curso"}
         try:
+            if not self._deck_path:
+                self._operation_lock.release()
+                return {"ok": False, "error": "No hay deck cargado"}
+            deck_path = self._deck_path
+            snapshot = copy.deepcopy(opts)
+            threading.Thread(
+                target=self._convert_worker, args=(deck_path, snapshot), daemon=True
+            ).start()
+            return {"started": True}
+        except Exception:
+            self._operation_lock.release()
+            raise
+
+    @diagnostics.timed("conversion")
+    def _convert_worker(self, deck_path: Path, opts: dict) -> dict:
+        try:
+            cfg = opts.get("config") or {}
+            out = opts.get("outDir")
+            out_dir = Path(out) if out else deck_path.parent / f"{deck_path.stem}-web"
             summary = pipeline.convert(
-                pptx_path=self._deck_path,
+                pptx_path=deck_path,
                 out_dir=out_dir,
                 scale=float(opts.get("scale", 2.0)),
                 quality=int(opts.get("quality", 82)),
                 fmt=opts.get("format", "webp"),
                 theme=cfg.get("theme"),
                 deck_config=cfg,
-                config_dir=self._deck_path.parent,
+                config_dir=deck_path.parent,
                 make_zip=bool(opts.get("zip", False)),
                 on_progress=lambda stage, cur, tot: self._emit(
                     "progress", {"stage": stage, "current": cur, "total": tot}
                 ),
             )
             # guardar el config para reuso desde la CLI
-            self.save_config(cfg)
+            self._save_config_for(deck_path, cfg)
             self._emit("done", {
                 "outDir": str(summary.out_dir),
                 "indexPath": str(summary.index_path),
@@ -232,10 +278,17 @@ class Api:
                 "buildId": summary.build_id,
                 "warnings": summary.warnings,
             })
+            return {"ok": True}
         except (ValidationError, PowerPointNotAvailableError, RenderError) as exc:
+            diagnostics.log.exception("Conversion failed")
             self._emit("error", {"message": str(exc)})
+            return {"ok": False}
         except Exception as exc:  # noqa: BLE001 — superficie para la UI
+            diagnostics.log.exception("Conversion failed")
             self._emit("error", {"message": f"Error inesperado: {exc}"})
+            return {"ok": False}
+        finally:
+            self._operation_lock.release()
 
     # ── actualizaciones OTA ───────────────────────────────────────────────
 
@@ -248,26 +301,28 @@ class Api:
             return
         threading.Thread(target=self._update_worker, daemon=True).start()
 
+    @diagnostics.timed("update.check")
     def _update_worker(self) -> None:
         try:
             updated = updater.check_themes()
             if updated:
                 self._emit("themes-updated", {"themes": updated})
         except Exception:  # noqa: BLE001 — OTA nunca debe tumbar la app
-            pass
+            diagnostics.log.exception("Update check failed")
         try:
             update = updater.check_app()
             if update:
                 self._emit("update-available", update)
         except Exception:  # noqa: BLE001
-            pass
+            diagnostics.log.exception("Update check failed")
 
+    @diagnostics.timed("update.apply")
     def apply_update(self, update: dict) -> dict:
         """Descarga y lanza el instalador; si arranca, cierra la app para que
         Inno Setup reemplace los archivos y la relance."""
         if updater.apply_app_update(update):
-            if self.window:
-                self.window.destroy()
+            if self._window:
+                self._window.destroy()
             return {"ok": True}
         return {"ok": False, "error": "No se pudo iniciar la actualización"}
 
@@ -278,6 +333,25 @@ class Api:
 
     def open_folder(self, path: str) -> None:
         webbrowser.open(Path(path).as_uri())
+
+    def diagnostic_heartbeat(self) -> None:
+        diagnostics.heartbeat()
+
+    def report_ui_error(self, message: str, stack: str = "") -> None:
+        diagnostics.log.error("JavaScript error: %s\n%s", str(message)[:4000], str(stack)[:12000])
+
+    def read_diagnostics(self) -> dict:
+        return diagnostics.read_session_logs()
+
+    def open_diagnostics(self) -> dict:
+        import os
+        directory = diagnostics.initialize()
+        try:
+            os.startfile(str(directory))
+            return {"ok": True, "path": str(directory)}
+        except Exception:
+            diagnostics.log.exception("Cannot open diagnostics folder")
+            return {"ok": False, "path": str(directory)}
 
     # ── internos ──────────────────────────────────────────────────────────
 
@@ -295,8 +369,8 @@ class Api:
         self._assets = []
 
     def _emit(self, event: str, payload: dict) -> None:
-        if self.window:
-            self.window.evaluate_js(
+        if self._window:
+            self._window.evaluate_js(
                 f"window.guiEvent({json.dumps(event)}, {json.dumps(payload)})"
             )
 
@@ -304,15 +378,20 @@ class Api:
 def main() -> None:
     api = Api()
     window = webview.create_window(
-        "pptx2web — Asistente de publicación",
+        f"pptx2web {__version__} — Asistente de publicación",
         str(ASSETS / "index.html"),
         js_api=api,
         width=1180,
         height=820,
         min_size=(940, 640),
     )
-    api.window = window
-    webview.start()
+    api._window = window
+    supervisor = diagnostics.Supervisor(lambda: diagnostics.native_probe(window))
+    supervisor.start()
+    try:
+        webview.start()
+    finally:
+        supervisor.stop()
 
 
 if __name__ == "__main__":

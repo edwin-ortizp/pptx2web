@@ -298,3 +298,13 @@ input, select { font: inherit; }
 @keyframes ota-rise { from { opacity: 0; transform: translate(-50%, 12px); } }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+#diagnostics-dialog { width: min(900px, 90vw); max-height: 88vh; padding: 22px;
+  color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+#diagnostics-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.diagnostics-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.diagnostics-toolbar h2 { flex: 1; margin: 0; }
+#diagnostics-dialog p { margin: 12px 0; }
+#diagnostics-content { display: block; box-sizing: border-box; width: 100%; height: 48vh;
+  resize: vertical; padding: 12px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); font: 12px/1.5 Consolas, monospace; white-space: pre; }

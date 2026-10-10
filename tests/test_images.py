@@ -64,3 +64,43 @@ def test_identical_content_same_hash(tmp_path: Path):
     a1, _ = process(_fake_render(tmp_path, 1), tmp_path / "o1")
     a2, _ = process(_fake_render(tmp_path, 1), tmp_path / "o2")
     assert a1[0].src == a2[0].src  # mismo contenido → misma URL (D7)
+
+
+def test_two_image_workers_preserve_results_and_progress(tmp_path):
+    from PIL import Image
+    from pptx2web import images
+    from pptx2web.models import RenderedSlide
+    all_assets = []
+    for workers in (1, 2):
+        folder = tmp_path / str(workers)
+        folder.mkdir()
+        slides = []
+        for index in range(1, 5):
+            path = folder / f'{index}.png'
+            Image.new('RGB', (320, 180), (index * 40, 70, 90)).save(path)
+            slides.append(RenderedSlide(index=index, png_path=path, width_px=320, height_px=180))
+        progress = []
+        assets, warnings = images._process_images(slides, folder, 82, 'avif',
+                                                  lambda i, total: progress.append((i, total)), workers=workers)
+        assert progress == [(1, 4), (2, 4), (3, 4), (4, 4)]
+        assert not warnings
+        assert all(not slide.png_path.exists() for slide in slides)
+        for asset in assets:
+            with Image.open(folder / asset.src) as decoded:
+                assert decoded.size == (320, 180)
+        all_assets.append(assets)
+    assert all_assets[0] == all_assets[1]
+
+
+def test_avif_fallback_resets_memory_buffer():
+    import io
+    from pptx2web.images import _save_avif
+    class Encoder:
+        def save(self, target, fmt, **kwargs):
+            if 'speed' in kwargs:
+                target.write(b'partial-failed-data')
+                raise TypeError('unsupported speed')
+            target.write(b'valid-avif')
+    with io.BytesIO() as buffer:
+        _save_avif(Encoder(), buffer, 82)
+        assert buffer.getvalue() == b'valid-avif'
