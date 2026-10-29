@@ -36,6 +36,7 @@
       <li class="step" data-step="6"><span class="step-n">7</span><span class="step-l">Curso</span></li>
       <li class="step" data-step="7"><span class="step-n">8</span><span class="step-l">Publicar</span></li>
     </ol>
+    <button class="help-btn" id="show-syntax" type="button">? Ayuda de sintaxis</button>
     <div class="rail-foot" id="deck-badge" hidden>
       <div class="badge-title" id="badge-title"></div>
       <div class="badge-sub" id="badge-sub"></div>
@@ -131,6 +132,8 @@
       <section class="pane" data-pane="3">
         <h1 class="pane-title">Quizzes</h1>
         <p class="pane-sub">Preguntas detectadas en las notas (<code>[quiz]</code>). Solo lectura — para revisar antes de publicar.</p>
+        <div class="notice err" id="quizzes-warn" hidden></div>
+        <div data-syntax="quiz"></div>
         <div id="quizzes-list"></div>
       </section>
 
@@ -139,6 +142,8 @@
         <h1 class="pane-title">Actividades</h1>
         <p class="pane-sub">Artefactos HTML citados en las notas con <code>[actividad: alias]</code>.
           Se abren desde un botón en la lámina y son opcionales (no bloquean avanzar).</p>
+        <div class="notice err" id="activities-warn" hidden></div>
+        <div data-syntax="activity"></div>
         <div class="act-summary" id="activities-summary"></div>
         <div id="activities-list"></div>
         <div class="notice" id="activities-msg" hidden></div>
@@ -262,6 +267,15 @@
   </div>
   <p id="diagnostics-status" role="status" aria-live="polite"></p>
   <textarea id="diagnostics-content" readonly spellcheck="false" aria-label="Logs de la sesión"></textarea>
+</dialog>
+<dialog id="syntax-dialog" aria-labelledby="syntax-title">
+  <div class="diagnostics-toolbar">
+    <h2 id="syntax-title">Ayuda de sintaxis</h2>
+    <button class="ghost-btn" id="close-syntax">Cerrar</button>
+  </div>
+  <p>Todo se escribe en PowerPoint, en las <b>notas del orador</b> de la lámina
+    (menú <b>Vista → Notas</b>, o el panel “Haga clic para agregar notas” bajo la lámina).</p>
+  <div id="syntax-all"></div>
 </dialog>
 <script src="app.js"></script>
 </body>

@@ -301,7 +301,9 @@ input, select { font: inherit; }
 
 #diagnostics-dialog { width: min(900px, 90vw); max-height: 88vh; padding: 22px;
   color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-#diagnostics-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+#syntax-dialog { width: min(760px, 90vw); max-height: 88vh; padding: 22px; margin: auto;
+  color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+#syntax-dialog::backdrop, #diagnostics-dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .diagnostics-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .diagnostics-toolbar h2 { flex: 1; margin: 0; }
 #diagnostics-dialog p { margin: 12px 0; }
@@ -321,3 +323,18 @@ input, select { font: inherit; }
 .act-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .act-update { margin-top: 22px; }
 .ghost-btn.sm { padding: 6px 12px; font-size: 12.5px; }
+
+/* ── ayuda de sintaxis ── */
+.help-btn { margin: 10px 14px 0; padding: 8px 12px; border-radius: 9px; font-size: 12.5px;
+  font-weight: 600; color: var(--accent); border: 1px solid var(--line); text-align: left; }
+.help-btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.syntax-card { border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 11px;
+  margin-bottom: 14px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.syntax-card summary { cursor: pointer; padding: 11px 14px; font-size: 13px; font-weight: 600; color: var(--accent); }
+.syntax-body { padding: 0 14px 14px; }
+.syntax-code { margin: 0 0 8px; padding: 12px; border-radius: 8px; background: var(--bg);
+  border: 1px solid var(--line); font: 12.5px/1.55 Consolas, ui-monospace, monospace;
+  white-space: pre-wrap; color: var(--ink); }
+.syntax-rules { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.syntax-rules b { color: var(--ink); }
+#syntax-dialog p { margin: 12px 0; font-size: 13px; color: var(--muted); }

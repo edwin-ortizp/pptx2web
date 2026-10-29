@@ -216,6 +216,7 @@ class Api:
                 }
                 for s in self._deck.slides
             ],
+            "warnings": self._deck.warnings,
             "configPath": str(existing) if existing else None,
             "config": cfg,
             "deckPath": str(pptx_path),

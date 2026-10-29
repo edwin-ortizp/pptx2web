@@ -137,6 +137,7 @@ async function loadDeck(path) {
     buildSwatches();
     renderSections();
     renderQuizzes();
+    renderDeckWarnings();
     await refreshActivities();
     renderLinks();
     syncCourseInputs();
@@ -334,6 +335,7 @@ function renderQuizzes() {
   const wrap = $("quizzes-list");
   wrap.innerHTML = "";
   const slides = state.deck.slides.filter((s) => s.quiz);
+  renderSyntaxHelp("quiz", !slides.length);
   if (!slides.length) {
     wrap.innerHTML = `<div class="inter-empty">No se detectaron quizzes.<br>
       Se definen en las <b>notas</b> de la lámina con un bloque <code>[quiz]</code>.</div>`;
@@ -356,6 +358,109 @@ function renderQuizzes() {
     card.innerHTML = html;
     wrap.appendChild(card);
   }
+}
+
+// ───────────────────────── ayuda de sintaxis ─────────────────────────
+// Única fuente de la ayuda: la usan las tarjetas de cada paso y el diálogo.
+// Quien administra los PPT puede no tener el README: todo debe estar aquí.
+
+const SYNTAX_HELP = {
+  quiz: {
+    title: "Quiz (pregunta con opciones)",
+    template: `[quiz]
+¿Cuál es el evento que inspecciona el incremento?
+- Daily Scrum
++ Sprint Review
+- Sprint Planning
+ok: ¡Correcto! La Review inspecciona el incremento.
+no: Repasa la sección de eventos de Scrum.`,
+    rules: [
+      "Va en las <b>notas del orador</b> y <b>[quiz]</b> debe ser lo primero.",
+      "<b>+</b> marca la opción correcta (exactamente una); <b>-</b> las incorrectas. Mínimo 2 opciones.",
+      "La pregunta es opcional (omítela si ya se ve en la lámina).",
+      "<b>ok:</b> y <b>no:</b> son los mensajes al acertar o fallar (opcionales).",
+    ],
+  },
+  activity: {
+    title: "Actividad interactiva (artefacto HTML)",
+    template: `[actividad: sprint-eventos | Ordena los eventos del Sprint]`,
+    rules: [
+      "Una línea en las <b>notas del orador</b>, en cualquier posición (puede ir con otras notas o con un quiz).",
+      "Lo que va antes de <b>|</b> es el <b>alias</b>; lo de después, el texto del botón (opcional).",
+      "Guarda el HTML como <b>actividades/sprint-eventos.html</b> junto al .pptx, o selecciónalo en el paso Actividades.",
+      "Máximo una actividad por lámina. Si cambias el HTML, usa “Actualizar actividades” (no hace falta republicar).",
+    ],
+  },
+  link: {
+    title: "Enlaces",
+    template: null,
+    rules: [
+      "No llevan sintaxis: usa <b>Insertar → Vínculo</b> en PowerPoint sobre un texto, forma o imagen.",
+      "“Lugar de este documento” crea un enlace a otra lámina; una dirección web abre la página.",
+    ],
+  },
+};
+
+function syntaxCard(kind, open) {
+  const h = SYNTAX_HELP[kind];
+  const code = h.template
+    ? `<pre class="syntax-code">${escapeHtml(h.template)}</pre>
+       <button class="ghost-btn sm copy-btn" type="button">Copiar plantilla</button>`
+    : "";
+  const rules = h.rules.map((r) => `<li>${r}</li>`).join("");
+  const wrap = document.createElement("details");
+  wrap.className = "syntax-card";
+  wrap.open = open;
+  wrap.innerHTML = `<summary>¿Cómo se escribe? — ${escapeHtml(h.title)}</summary>
+    <div class="syntax-body">${code}<ul class="syntax-rules">${rules}</ul></div>`;
+  const btn = wrap.querySelector(".copy-btn");
+  if (btn) btn.addEventListener("click", () => copyText(h.template, btn));
+  return wrap;
+}
+
+// tarjeta del paso: abierta si el deck no trae nada de ese tipo
+function renderSyntaxHelp(kind, open) {
+  const host = document.querySelector(`[data-syntax="${kind}"]`);
+  if (!host) return;
+  host.innerHTML = "";
+  host.appendChild(syntaxCard(kind, open));
+}
+
+function openSyntaxDialog() {
+  const all = $("syntax-all");
+  all.innerHTML = "";
+  for (const kind of Object.keys(SYNTAX_HELP)) all.appendChild(syntaxCard(kind, true));
+  $("syntax-dialog").showModal();
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+  const label = btn.textContent;
+  btn.textContent = "✓ Copiada";
+  setTimeout(() => { btn.textContent = label; }, 1500);
+}
+
+// avisos del deck (quiz malformado, actividad repetida…) en su paso
+function renderDeckWarnings() {
+  const warnings = state.deck.warnings || [];
+  const show = (id, list) => {
+    const box = $(id);
+    box.hidden = !list.length;
+    box.innerHTML = list.length
+      ? `<b>Revisa en el PowerPoint:</b>` + list.map((w) => `<div>• ${escapeHtml(w)}</div>`).join("")
+      : "";
+  };
+  show("quizzes-warn", warnings.filter((w) => /\[quiz\]/i.test(w)));
+  show("activities-warn", warnings.filter((w) => /actividad/i.test(w)));
 }
 
 // ───────────────────────── actividades ─────────────────────────
@@ -385,6 +490,7 @@ function renderActivities() {
   const wrap = $("activities-list");
   wrap.innerHTML = "";
   const cited = rows.filter((r) => r.slides.length);
+  renderSyntaxHelp("activity", !rows.length);
   const ready = cited.filter((r) => r.status === "ok").length;
   $("activities-summary").textContent = cited.length
     ? `${ready} de ${cited.length} actividad(es) citadas están listas` : "";
@@ -747,6 +853,9 @@ function wire() {
 
   $("ota-apply").addEventListener("click", applyUpdate);
   $("ota-dismiss").addEventListener("click", () => { $("ota-toast").hidden = true; });
+
+  $("show-syntax").addEventListener("click", openSyntaxDialog);
+  $("close-syntax").addEventListener("click", () => $("syntax-dialog").close());
 
   $("show-diagnostics").addEventListener("click", () => {
     $("diagnostics-dialog").showModal();
