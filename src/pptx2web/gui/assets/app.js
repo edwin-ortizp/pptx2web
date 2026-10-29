@@ -71,6 +71,7 @@ function renderDots() {
 
 function schedulePreview() {
   if (!state.loaded) return;
+  scheduleSave();
   clearTimeout(previewTimer);
   previewTimer = setTimeout(refreshPreview, 280);
 }
@@ -85,6 +86,101 @@ async function refreshPreview() {
     f.src = res.url;
     $("preview-tag").textContent = "actualizado";
   }
+}
+
+// ───────────────────────── autoguardado del config ─────────────────────────
+// El config se guarda solo junto al .pptx: quien administra el material no
+// tiene que acordarse de nada (antes solo se guardaba al publicar).
+
+let saveTimer = null;
+
+function scheduleSave() {
+  if (!state.loaded) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveConfigNow, 800);
+}
+
+async function saveConfigNow() {
+  const json = JSON.stringify(state.config);
+  if (json === state.savedJson) return;
+  setSaveStatus("saving");
+  try {
+    const res = await api().save_config(state.config);
+    if (!res || !res.ok) throw new Error(res?.error || "No se pudo guardar");
+    state.savedJson = json;
+    state.configExists = true;
+    state.configPath = res.path;
+    setSaveStatus("saved");
+    renderConfigCard();
+  } catch (error) {
+    reportError(error);
+    setSaveStatus("error", error.message);
+  }
+}
+
+function setSaveStatus(kind, detail) {
+  const el = $("save-status");
+  el.hidden = false;
+  el.className = `save-status ${kind}`;
+  const name = configFileName();
+  el.textContent = kind === "saving" ? "Guardando configuración…"
+    : kind === "saved" ? `✓ Configuración guardada · ${name}`
+    : `✕ No se pudo guardar la configuración${detail ? `: ${detail}` : ""}`;
+}
+
+function configFileName() {
+  const deck = (state.deck?.deckPath || "").split(/[\\/]/).pop();
+  return deck.replace(/\.pptx$/i, "") + ".config.json";
+}
+
+function renderConfigCard() {
+  if (!state.deck) return;
+  const c = state.config;
+  const parts = [];
+  if ((c.sections || []).length) parts.push(`${c.sections.length} sección(es)`);
+  const acts = Object.keys(c.activities || {}).length;
+  if (acts) parts.push(`${acts} actividad(es) asociada(s)`);
+  if ((c.quizzes || []).length) parts.push(`${c.quizzes.length} quiz(zes) en el config`);
+  if ((c.links || []).length) parts.push(`${c.links.length} enlace(s) manual(es)`);
+  if (c.course?.title) parts.push(`curso “${c.course.title}”`);
+  parts.push(`tema ${c.theme || "default"}`);
+  $("config-name").textContent = configFileName();
+  $("config-file").textContent = state.configExists ? "guardada ✓" : "aún sin guardar";
+  $("config-file").className = `config-file ${state.configExists ? "ok" : "pending"}`;
+  $("config-summary").textContent = state.recovered
+    ? `Recuperada de la última publicación: ${parts.join(" · ")}.`
+    : state.configExists ? `Contiene: ${parts.join(" · ")}.`
+    : "Todavía no hay configuración: se creará sola en cuanto hagas un cambio.";
+  $("config-card").hidden = false;
+}
+
+async function exportConfig() {
+  try {
+    const res = await api().export_config(state.config);
+    if (res && res.ok) alert(`Configuración exportada a:\n${res.path}`);
+    else if (res && res.error) alert(res.error);
+  } catch (error) { reportError(error); }
+}
+
+async function importConfig() {
+  try {
+    const res = await api().import_config();
+    if (!res || res.cancelled) return;
+    if (!res.ok) { alert(`No se pudo importar: ${res.error}`); return; }
+    if (!confirm("Esto reemplaza la configuración actual de esta presentación. ¿Continuar?")) return;
+    mergeExistingConfig(res.config);
+    state.recovered = false;
+    buildThemeCards();
+    buildSwatches();
+    renderSections();
+    syncCourseInputs();
+    syncSideSeg();
+    syncDefaultPanelSeg();
+    syncToolControls();
+    await refreshActivities();
+    renderConfigCard();
+    schedulePreview(); // también guarda
+  } catch (error) { reportError(error); }
 }
 
 // ───────────────────────── paso 1: archivo ─────────────────────────
@@ -118,6 +214,7 @@ async function loadDeck(path) {
     }
     state.deck = res;
     state.loaded = true;
+    state.recovered = false;
 
     // si el .pptx ya traía config, adoptarla
     if (res.config) mergeExistingConfig(res.config);
@@ -125,9 +222,12 @@ async function loadDeck(path) {
     $("di-title").textContent = res.title;
     $("di-count").textContent = res.slideCount;
     $("deck-info").hidden = false;
-    if (res.configPath) {
-      $("di-config").textContent = res.configPath.split(/[\\/]/).pop();
-      $("di-config-row").hidden = false;
+    // sin config junto al .pptx pero con una publicación previa: ofrecerla
+    if (!res.config && res.recoveredConfig &&
+        confirm("No se encontró la configuración junto al PowerPoint, pero sí la de la última " +
+                `publicación en:\n${res.recoveredFrom}\n\n¿Recuperarla (secciones, apariencia, actividades…)?`)) {
+      mergeExistingConfig(res.recoveredConfig);
+      state.recovered = true;
     }
     $("badge-title").textContent = res.title;
     $("badge-sub").textContent = `${res.slideCount} láminas`;
@@ -145,6 +245,13 @@ async function loadDeck(path) {
     syncDefaultPanelSeg();
     syncToolControls();
 
+    // lo cargado ya está en disco; solo se guarda lo que cambie después
+    // (salvo que se haya recuperado de una publicación: eso sí se guarda ya)
+    state.savedJson = state.recovered ? null : JSON.stringify(state.config);
+    state.configExists = !!res.configPath;
+    renderConfigCard();
+    if (state.recovered) saveConfigNow();
+
     goStep(1);
     await refreshPreview();
   } catch (error) {
@@ -158,6 +265,7 @@ async function loadDeck(path) {
 
 function mergeExistingConfig(cfg) {
   state.config = {
+    ...cfg, // conservar quizzes, links y claves que la UI no edita
     theme: cfg.theme || "default",
     colors: cfg.colors || {},
     layout: { sidebarSide: "left", panels: ["thumbnails"], ...(cfg.layout || {}) },
@@ -855,6 +963,19 @@ function wire() {
   $("ota-dismiss").addEventListener("click", () => { $("ota-toast").hidden = true; });
 
   $("show-syntax").addEventListener("click", openSyntaxDialog);
+  $("export-config").addEventListener("click", exportConfig);
+  $("import-config").addEventListener("click", importConfig);
+  $("open-config-folder").addEventListener("click", () => {
+    const p = state.deck?.deckPath;
+    if (p) api().open_folder(p.replace(/[\\/][^\\/]*$/, ""));
+  });
+  // cualquier interacción en el panel puede cambiar el config (secciones,
+  // colores, lápiz…); saveConfigNow no escribe si nada cambió
+  for (const ev of ["input", "change", "click"]) {
+    $("panel-scroll").addEventListener(ev, () => setTimeout(scheduleSave, 0));
+  }
+  // último intento de guardar si se cierra con un cambio pendiente
+  window.addEventListener("beforeunload", () => { if (saveTimer) saveConfigNow(); });
   $("close-syntax").addEventListener("click", () => $("syntax-dialog").close());
 
   $("show-diagnostics").addEventListener("click", () => {

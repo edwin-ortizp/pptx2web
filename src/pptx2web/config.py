@@ -70,6 +70,53 @@ def find_deck_config(pptx_path: Path) -> Path | None:
     return candidate if candidate.exists() else None
 
 
+def published_config_dir(pptx_path: Path) -> Path:
+    """Carpeta de salida por defecto (la misma que usan CLI y GUI)."""
+    return pptx_path.with_name(f"{pptx_path.stem}-web")
+
+
+def config_from_published(out_dir: Path) -> dict | None:
+    """Reconstruye un config del deck a partir del `config.json` de una
+    publicación (respaldo cuando se perdió el `<stem>.config.json`).
+
+    El config publicado ya está resuelto: el logo y las actividades apuntan a
+    copias dentro de la carpeta publicada, así que se reescriben a rutas
+    absolutas a esas copias para que la siguiente publicación las encuentre.
+    """
+    path = out_dir / "config.json"
+    if not path.is_file():
+        return None
+    try:
+        published = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(published, dict):
+        return None
+    cfg = {k: published[k] for k in (
+        "theme", "colors", "layout", "course", "sections", "quizzes",
+        "pointer", "pen",
+    ) if k in published}
+    # los links del pptx no van en el config; solo los manuales
+    cfg["links"] = [
+        {k: v for k, v in link.items() if k != "kind"}
+        for link in published.get("links") or [] if isinstance(link, dict)
+    ]
+    course = dict(cfg.get("course") or {})
+    if course.get("logo"):
+        logo = out_dir / course["logo"]
+        course["logo"] = str(logo) if logo.is_file() else None
+    cfg["course"] = course
+    activities = {}
+    for alias, entry in (published.get("activities") or {}).items():
+        src = (entry or {}).get("src")
+        if not src:
+            continue
+        file = src if is_url(src) else str(out_dir / src)
+        activities[alias] = {"file": file, "title": entry.get("title")}
+    cfg["activities"] = activities
+    return cfg
+
+
 def load_deck_config(config_path: Path) -> dict:
     if not config_path.exists():
         raise ValidationError(f"Config no encontrado: {config_path}")

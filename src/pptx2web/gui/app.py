@@ -35,8 +35,10 @@ def _file_dialog(kind: str):
     """Constante de tipo de diálogo compatible con pywebview nuevo y viejo."""
     fd = getattr(webview, "FileDialog", None)
     if fd is not None:  # pywebview ≥ 5.x
-        return fd.OPEN if kind == "open" else fd.FOLDER
-    return webview.OPEN_DIALOG if kind == "open" else webview.FOLDER_DIALOG
+        return {"open": fd.OPEN, "save": fd.SAVE}.get(kind, fd.FOLDER)
+    return {"open": webview.OPEN_DIALOG, "save": webview.SAVE_DIALOG}.get(
+        kind, webview.FOLDER_DIALOG
+    )
 
 
 class _QuietHandler(SimpleHTTPRequestHandler):
@@ -201,6 +203,12 @@ class Api:
 
         existing = config_mod.find_deck_config(pptx_path)
         cfg = config_mod.load_deck_config(existing) if existing else None
+        # sin config junto al .pptx: ¿hay una publicación previa de donde
+        # recuperarla? La UI pregunta antes de usarla.
+        recovered = None
+        if cfg is None:
+            published = config_mod.published_config_dir(pptx_path)
+            recovered = config_mod.config_from_published(published)
 
         return {
             "ok": True,
@@ -219,6 +227,8 @@ class Api:
             "warnings": self._deck.warnings,
             "configPath": str(existing) if existing else None,
             "config": cfg,
+            "recoveredConfig": recovered,
+            "recoveredFrom": str(config_mod.published_config_dir(pptx_path)) if recovered else None,
             "deckPath": str(pptx_path),
         }
 
@@ -273,7 +283,44 @@ class Api:
     def save_config(self, cfg: dict) -> dict:
         if not self._deck_path:
             return {"ok": False, "error": "No hay deck cargado"}
-        return self._save_config_for(self._deck_path, cfg)
+        try:
+            return self._save_config_for(self._deck_path, cfg)
+        except OSError as exc:
+            diagnostics.log.exception("Config save failed")
+            return {"ok": False, "error": str(exc)}
+
+    @diagnostics.timed("dialog.export_config")
+    def export_config(self, cfg: dict) -> dict:
+        """Guarda una copia del config donde el usuario elija."""
+        name = f"{self._deck_path.stem}.config.json" if self._deck_path else "config.json"
+        res = self._window.create_file_dialog(
+            _file_dialog("save"), save_filename=name,
+            file_types=("Configuración (*.json)",),
+        )
+        if not res:
+            return {"ok": False, "cancelled": True}
+        target = Path(res if isinstance(res, str) else res[0])
+        try:
+            target.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "path": str(target)}
+
+    @diagnostics.timed("dialog.import_config")
+    def import_config(self) -> dict:
+        """Lee un config (.json) elegido por el usuario y lo valida."""
+        res = self._window.create_file_dialog(
+            _file_dialog("open"), file_types=("Configuración (*.json)",)
+        )
+        if not res:
+            return {"ok": False, "cancelled": True}
+        try:
+            cfg = config_mod.load_deck_config(Path(res[0]))
+            config_mod.resolve(cfg, cfg.get("theme"),
+                               self._deck.slide_count if self._deck else 0)
+        except ValidationError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "config": cfg, "path": res[0]}
 
     def _save_config_for(self, deck_path: Path, cfg: dict) -> dict:
         path = deck_path.with_name(f"{deck_path.stem}.config.json")

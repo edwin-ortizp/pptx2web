@@ -37,6 +37,7 @@
       <li class="step" data-step="7"><span class="step-n">8</span><span class="step-l">Publicar</span></li>
     </ol>
     <button class="help-btn" id="show-syntax" type="button">? Ayuda de sintaxis</button>
+    <div class="save-status" id="save-status" role="status" aria-live="polite" hidden></div>
     <div class="rail-foot" id="deck-badge" hidden>
       <div class="badge-title" id="badge-title"></div>
       <div class="badge-sub" id="badge-sub"></div>
@@ -59,7 +60,21 @@
         <div class="deck-info" id="deck-info" hidden>
           <div class="deck-info-row"><span>Título</span><b id="di-title"></b></div>
           <div class="deck-info-row"><span>Láminas</span><b id="di-count"></b></div>
-          <div class="deck-info-row" id="di-config-row" hidden><span>Config</span><b id="di-config"></b></div>
+        </div>
+        <div class="config-card" id="config-card" hidden>
+          <div class="config-head">
+            <span class="config-title">Configuración del material</span>
+            <span class="config-file" id="config-file"></span>
+          </div>
+          <p class="config-text" id="config-summary"></p>
+          <p class="config-hint">Guarda secciones, apariencia, actividades y datos del curso. Se guarda sola en
+            <b id="config-name"></b>, junto al .pptx: <b>si mueves o compartes el PowerPoint, lleva también este archivo</b>
+            (o expórtalo).</p>
+          <div class="config-actions">
+            <button class="ghost-btn sm" id="export-config">Exportar configuración…</button>
+            <button class="ghost-btn sm" id="import-config">Importar configuración…</button>
+            <button class="link-btn" id="open-config-folder">Abrir carpeta</button>
+          </div>
         </div>
       </section>
 

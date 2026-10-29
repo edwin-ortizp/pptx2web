@@ -338,3 +338,18 @@ input, select { font: inherit; }
 .syntax-rules { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
 .syntax-rules b { color: var(--ink); }
 #syntax-dialog p { margin: 12px 0; font-size: 13px; color: var(--muted); }
+
+/* ── configuración del material ── */
+.save-status { margin: 10px 14px 0; font-size: 11.5px; line-height: 1.4; color: var(--muted); word-break: break-word; }
+.save-status.saved { color: var(--ok); }
+.save-status.error { color: #f2a09e; }
+.config-card { margin-top: 16px; border: 1px solid var(--line); border-radius: 11px; padding: 14px 16px; }
+.config-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.config-title { font-size: 13.5px; font-weight: 700; }
+.config-file { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+.config-file.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.config-file.pending { color: #f0c98a; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.config-text { font-size: 13px; margin: 10px 0 6px; }
+.config-hint { font-size: 12.5px; line-height: 1.55; color: var(--muted); margin: 0 0 12px; }
+.config-hint b { color: var(--ink); }
+.config-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

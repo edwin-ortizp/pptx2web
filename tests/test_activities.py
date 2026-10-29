@@ -136,3 +136,33 @@ def test_update_activities_without_reconverting(tmp_path: Path):
     assert not (out / "activities" / "viejo.html").exists()
     html = (out / "index.html").read_text(encoding="utf-8")
     assert cfg["activities"]["sprint"]["version"] in html
+
+
+def test_config_from_published_roundtrip(tmp_path: Path):
+    (tmp_path / "actividades").mkdir()
+    (tmp_path / "actividades" / "sprint.html").write_text("<p>v1</p>")
+    (tmp_path / "logo.png").write_bytes(b"\x89PNG fake")
+    cfg = {
+        "theme": "certmind",
+        "course": {"title": "Scrum", "logo": "logo.png"},
+        "sections": [{"title": "Todo", "from": 1, "to": 3}],
+        "links": [{"slide": 1, "rect": {"x": 0, "y": 0, "w": .1, "h": .1}, "href": "https://e.com"}],
+        "activities": {"web": "https://e.com/a"},
+    }
+    out, _ = _publish(tmp_path, cfg)
+
+    rec = config_mod.config_from_published(out)
+    assert rec["theme"] == "certmind" and rec["sections"] == cfg["sections"]
+    assert rec["course"]["title"] == "Scrum"
+    assert Path(rec["course"]["logo"]).is_file()
+    assert rec["links"][0]["href"] == "https://e.com" and "kind" not in rec["links"][0]
+    assert rec["activities"]["web"]["file"] == "https://e.com/a"
+    assert Path(rec["activities"]["sprint"]["file"]).read_text() == "<p>v1</p>"
+    # lo recuperado es un config válido que se puede volver a publicar
+    config_mod.resolve(rec, rec.get("theme"), 3)
+
+
+def test_config_from_published_missing(tmp_path: Path):
+    assert config_mod.config_from_published(tmp_path / "nada") is None
+    (tmp_path / "config.json").write_text("{roto")
+    assert config_mod.config_from_published(tmp_path) is None
