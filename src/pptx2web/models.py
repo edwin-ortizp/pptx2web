@@ -91,6 +91,17 @@ class Quiz:
 
 
 @dataclass
+class ActivityRef:
+    """Cita a una actividad interactiva desde las notas: solo el alias; el
+    archivo se resuelve en el config (editable sin reconvertir)."""
+    alias: str
+    title: str | None = None
+
+    def as_dict(self) -> dict:
+        return {"alias": self.alias, "title": self.title}
+
+
+@dataclass
 class SlideMeta:
     index: int  # 1-based
     title: str
@@ -100,6 +111,7 @@ class SlideMeta:
     media: list[MediaItem] = field(default_factory=list)
     links: list[LinkItem] = field(default_factory=list)
     quiz: Quiz | None = None
+    activity: ActivityRef | None = None
 
 
 @dataclass

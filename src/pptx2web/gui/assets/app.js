@@ -15,7 +15,7 @@ const COLOR_VARS = [
   ["--line", "Bordes", "Líneas y separadores"],
 ];
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 const DEFAULT_PEN = { colors: ["#e3342f", "#ffd60a", "#39b54a", "#2f6fed", "#ffffff"],
   penSize: 3, highlighterSize: 18, eraserSize: 28 };
@@ -34,7 +34,9 @@ const state = {
     sections: [],
     pointer: { ...DEFAULT_POINTER },
     pen: { ...DEFAULT_PEN, colors: [...DEFAULT_PEN.colors] },
+    activities: {},
   },
+  activityRows: [],
   output: { scale: "2.0", quality: 82, format: "webp", zip: false, outDir: null },
 };
 
@@ -135,6 +137,7 @@ async function loadDeck(path) {
     buildSwatches();
     renderSections();
     renderQuizzes();
+    await refreshActivities();
     renderLinks();
     syncCourseInputs();
     syncSideSeg();
@@ -161,6 +164,7 @@ function mergeExistingConfig(cfg) {
     sections: cfg.sections || [],
     pointer: { ...DEFAULT_POINTER, ...(cfg.pointer || {}) },
     pen: { ...DEFAULT_PEN, colors: [...DEFAULT_PEN.colors], ...(cfg.pen || {}) },
+    activities: cfg.activities || {},
   };
 }
 
@@ -354,6 +358,119 @@ function renderQuizzes() {
   }
 }
 
+// ───────────────────────── actividades ─────────────────────────
+
+const ACT_STATUS = {
+  ok: ["ok", "✓ Lista"],
+  missing_file: ["bad", "✕ Falta archivo"],
+  unused: ["warn", "⚠ No citada en ninguna lámina"],
+};
+
+async function refreshActivities() {
+  const res = await api().activity_status(state.config);
+  const msg = $("activities-msg");
+  if (!res || !res.ok) {
+    msg.className = "notice err";
+    msg.textContent = res ? res.error : "No se pudo revisar las actividades";
+    msg.hidden = false;
+    return;
+  }
+  msg.hidden = true;
+  state.activityRows = res.rows;
+  renderActivities();
+}
+
+function renderActivities() {
+  const rows = state.activityRows;
+  const wrap = $("activities-list");
+  wrap.innerHTML = "";
+  const cited = rows.filter((r) => r.slides.length);
+  const ready = cited.filter((r) => r.status === "ok").length;
+  $("activities-summary").textContent = cited.length
+    ? `${ready} de ${cited.length} actividad(es) citadas están listas` : "";
+  const stepLabel = document.querySelector('.step[data-step="4"] .step-l');
+  stepLabel.textContent = cited.length && ready < cited.length
+    ? `Actividades (${ready}/${cited.length})` : "Actividades";
+
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="inter-empty">No se detectaron actividades.<br>
+      Escribe en las <b>notas</b> de una lámina <code>[actividad: mi-alias]</code>
+      (o <code>[actividad: mi-alias | Texto del botón]</code>) y pon el HTML en
+      <code>actividades/mi-alias.html</code> junto al .pptx, o selecciónalo aquí.</div>`;
+    return;
+  }
+  for (const r of rows) {
+    const [cls, label] = ACT_STATUS[r.status];
+    const card = document.createElement("div");
+    card.className = "inter-slide act-row";
+    const where = r.slides.length ? `Lámina ${r.slides.join(", ")}` : "Sin lámina";
+    const file = r.resolved ? r.resolved.split(/[\\/]/).pop() : "—";
+    card.innerHTML = `
+      <div class="act-top">
+        <span class="act-alias">${escapeHtml(r.alias)}</span>
+        <span class="act-badge ${cls}">${label}</span>
+      </div>
+      <div class="act-meta">${escapeHtml(where)} · Archivo: <b>${escapeHtml(file)}</b>${r.auto ? " (carpeta actividades/)" : ""}</div>
+      <div class="act-actions">
+        <button class="ghost-btn sm" data-act="pick">${r.resolved ? "Cambiar HTML…" : "Seleccionar HTML…"}</button>
+        ${r.resolved && !/^https?:/i.test(r.resolved) ? `<button class="link-btn" data-act="test">Probar</button>` : ""}
+        ${r.file ? `<button class="link-btn" data-act="clear">quitar asociación</button>` : ""}
+      </div>`;
+    card.querySelector('[data-act="pick"]').addEventListener("click", () => pickActivity(r.alias));
+    card.querySelector('[data-act="test"]')?.addEventListener("click", () => api().open_url(fileUrl(r.resolved)));
+    card.querySelector('[data-act="clear"]')?.addEventListener("click", () => {
+      delete state.config.activities[r.alias];
+      onActivitiesChanged();
+    });
+    wrap.appendChild(card);
+  }
+}
+
+function fileUrl(path) {
+  return /^https?:/i.test(path) ? path : "file:///" + path.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+async function pickActivity(alias) {
+  try {
+    const path = await api().pick_activity();
+    if (!path) return;
+    state.config.activities = state.config.activities || {};
+    state.config.activities[alias] = { ...(state.config.activities[alias] || {}), file: path };
+    await onActivitiesChanged();
+  } catch (error) {
+    reportError(error);
+    alert("No se pudo seleccionar el archivo. Consulta la carpeta de diagnóstico.");
+  }
+}
+
+async function onActivitiesChanged() {
+  await refreshActivities();
+  schedulePreview();
+}
+
+async function updateActivities() {
+  const btn = $("update-activities");
+  btn.disabled = true;
+  const msg = $("activities-msg");
+  try {
+    const res = await api().update_activities({ config: state.config, outDir: state.output.outDir });
+    msg.hidden = false;
+    if (res && res.ok) {
+      msg.className = "notice";
+      msg.textContent = `✓ Actividades actualizadas en ${res.outDir}`;
+      state.activityRows = res.rows;
+      renderActivities();
+    } else {
+      msg.className = "notice err";
+      msg.textContent = res ? res.error : "No se pudo actualizar";
+    }
+  } catch (error) {
+    reportError(error);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function renderLinks() {
   const wrap = $("links-list");
   wrap.innerHTML = "";
@@ -525,6 +642,11 @@ function showResult(r) {
   const mb = (r.imageBytes / 1024 / 1024).toFixed(1);
   let html = `<div>${r.slideCount} láminas · ${mb} MB${r.mediaCount ? ` · ${r.mediaCount} media` : ""}</div>`;
   html += `<div style="color:var(--muted);margin-top:4px">${r.outDir}</div>`;
+  const acts = (r.activities || []).filter((a) => a.slides.length);
+  if (acts.length) {
+    const ok = acts.filter((a) => a.status === "ok").length;
+    html += `<div style="margin-top:4px">Actividades incluidas: ${ok}${ok < acts.length ? ` · faltantes: ${acts.length - ok}` : ""}</div>`;
+  }
   if (r.warnings && r.warnings.length) {
     html += `<div class="warn-line" style="margin-top:8px">${r.warnings.length} advertencia(s):</div>`;
     html += r.warnings.map((w) => `<div class="warn-line">• ${escapeHtml(w)}</div>`).join("");
@@ -544,6 +666,7 @@ function escapeAttr(s) { return escapeHtml(s).replace(/"/g, "&quot;"); }
 
 function wire() {
   $("pick-pptx").addEventListener("click", pickPptx);
+  $("update-activities").addEventListener("click", updateActivities);
   $("nav-back").addEventListener("click", () => goStep(state.step - 1));
   $("nav-next").addEventListener("click", () => goStep(state.step + 1));
   document.querySelectorAll(".step").forEach((s) =>

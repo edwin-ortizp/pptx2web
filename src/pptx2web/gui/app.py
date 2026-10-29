@@ -81,6 +81,24 @@ class Api:
         diagnostics.selected_file(res[0] if res else None)
         return res[0] if res else None
 
+    @diagnostics.timed("dialog.activity")
+    def pick_activity(self) -> str | None:
+        """Diálogo .html; devuelve la ruta relativa a la carpeta del .pptx si
+        cae dentro de ella (el config sigue siendo portable)."""
+        res = self._window.create_file_dialog(
+            _file_dialog("open"), file_types=("Actividad HTML (*.html;*.htm)",)
+        )
+        diagnostics.selected_file(res[0] if res else None)
+        if not res:
+            return None
+        path = Path(res[0])
+        if self._deck_path:
+            try:
+                return path.relative_to(self._deck_path.parent).as_posix()
+            except ValueError:
+                pass
+        return str(path)
+
     @diagnostics.timed("dialog.folder")
     def pick_output_dir(self) -> str | None:
         res = self._window.create_file_dialog(_file_dialog("folder"))
@@ -111,6 +129,41 @@ class Api:
         except ValidationError as exc:
             diagnostics.log.exception("Validation failed")
             return {"ok": False, "error": str(exc), "warnings": []}
+
+    # ── actividades interactivas ──────────────────────────────────────────
+
+    def activity_status(self, cfg: dict) -> dict:
+        """Checklist alias ↔ lámina ↔ archivo para revisar antes de publicar."""
+        if not self._deck:
+            return {"ok": False, "error": "No hay deck cargado"}
+        try:
+            activities = config_mod._validate_activities((cfg or {}).get("activities"))
+        except ValidationError as exc:
+            return {"ok": False, "error": str(exc)}
+        rows = config_mod.activity_status(
+            pipeline._cited(self._deck), activities, self._deck_path.parent
+        )
+        return {"ok": True, "rows": rows}
+
+    def update_activities(self, opts: dict) -> dict:
+        """Solo recopia actividades + config.json en una salida ya publicada
+        (sin PowerPoint): segundos en vez de reconvertir."""
+        if not self._deck_path:
+            return {"ok": False, "error": "No hay deck cargado"}
+        cfg = opts.get("config") or {}
+        out = opts.get("outDir")
+        out_dir = Path(out) if out else self._deck_path.parent / f"{self._deck_path.stem}-web"
+        if not (out_dir / "manifest.json").is_file() or not (out_dir / "index.html").is_file():
+            return {"ok": False, "error": f"No hay material publicado en {out_dir}. "
+                                          "Publica primero la presentación."}
+        try:
+            packager.update_activities(out_dir, cfg, self._deck_path.parent)
+        except (ValidationError, OSError, ValueError) as exc:
+            diagnostics.log.exception("Activity update failed")
+            return {"ok": False, "error": str(exc)}
+        self._save_config_for(self._deck_path, cfg)
+        status = self.activity_status(cfg)
+        return {"ok": True, "outDir": str(out_dir), "rows": status.get("rows", [])}
 
     # ── carga del deck + pre-render para preview ──────────────────────────
 
@@ -158,6 +211,7 @@ class Api:
                     "index": s.index,
                     "title": s.title,
                     "quiz": s.quiz.as_dict() if s.quiz else None,
+                    "activity": s.activity.as_dict() if s.activity else None,
                     "links": [link.as_dict() for link in s.links],
                 }
                 for s in self._deck.slides
@@ -277,6 +331,7 @@ class Api:
                 "mediaCount": summary.media_count,
                 "buildId": summary.build_id,
                 "warnings": summary.warnings,
+                "activities": summary.activities,
             })
             return {"ok": True}
         except (ValidationError, PowerPointNotAvailableError, RenderError) as exc:

@@ -25,7 +25,7 @@ def test_manifest_schema(deck_path: Path):
     assert manifest["slideSize"] == {"width": 2560, "height": 1440}
     s1 = manifest["slides"][0]
     assert set(s1) == {"index", "title", "src", "thumb", "notes", "text",
-                       "transition", "media", "links", "quiz"}
+                       "transition", "media", "links", "quiz", "activity"}
     assert s1["index"] == 1
     assert s1["media"] == []
     assert s1["links"] == [] and s1["quiz"] is None

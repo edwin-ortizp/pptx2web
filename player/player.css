@@ -593,6 +593,107 @@ button {
   .quiz-card { width: 100%; max-height: 92dvh; padding: 24px 20px 20px; }
 }
 
+/* ─────────────────── actividades interactivas ─────────────────── */
+
+.activity-layer { display: contents; }
+.activity-layer[hidden] { display: none; }
+
+/* a la izquierda para no chocar con el botón del quiz (derecha) */
+.activity-toggle {
+  pointer-events: auto;
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(50% - 28px);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  padding: 9px 16px 9px 13px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: filter .15s, transform .15s;
+}
+.activity-toggle:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.activity-toggle::before { content: "▶"; font-size: 10px; }
+.activity-toggle.visited, .activity-toggle.done {
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+}
+
+.activity-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+  backdrop-filter: blur(3px);
+  animation: quiz-fade .2s var(--ease) both;
+}
+
+.activity-box {
+  width: 96vw;
+  height: 96dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+}
+
+.activity-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 16px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--panel-2);
+}
+.activity-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.activity-close {
+  flex: none;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.activity-close:hover { color: var(--ink); background: var(--panel-2); }
+
+.activity-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-overlay { animation: none; }
+}
+
+@media (max-width: 768px) {
+  .activity-overlay { padding: 0; }
+  .activity-box { width: 100vw; height: 100dvh; border-radius: 0; }
+}
+
 /* ─────────────────── anotaciones a mano alzada ─────────────────── */
 
 .draw-layer {

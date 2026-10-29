@@ -34,6 +34,15 @@ class Summary:
     media_count: int
     build_id: str
     warnings: list[str] = field(default_factory=list)
+    activities: list[dict] = field(default_factory=list)  # filas de activity_status
+
+
+def _cited(deck) -> dict[str, list[int]]:
+    cited: dict[str, list[int]] = {}
+    for s in deck.slides:
+        if s.activity:
+            cited.setdefault(s.activity.alias, []).append(s.index)
+    return cited
 
 
 @timed("pipeline.convert")
@@ -99,6 +108,11 @@ def convert(
             deck_config, theme, deck.slide_count
         )
         warnings.extend(cfg_warnings)
+        config_dir = config_dir or pptx_path.parent
+        activity_rows = config_mod.activity_status(
+            _cited(deck), player_config["activities"], config_dir,
+        )
+        warnings.extend(config_mod.activity_warnings(activity_rows))
 
         emit("package")
         slide_px = (rendered[0].width_px, rendered[0].height_px)
@@ -119,4 +133,5 @@ def convert(
         media_count=len(media_files),
         build_id=manifest["buildId"],
         warnings=warnings,
+        activities=activity_rows,
     )

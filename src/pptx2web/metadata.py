@@ -5,6 +5,8 @@ from .diagnostics import timed
 
 import html
 import logging
+import re
+import unicodedata
 from pathlib import Path
 
 from pptx import Presentation
@@ -12,6 +14,7 @@ from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.util import Emu
 
 from .models import (
+    ActivityRef,
     DEFAULT_TRANSITION_DURATION_MS,
     Deck,
     LinkItem,
@@ -49,6 +52,7 @@ def extract(pptx_path: Path) -> Deck:
     slides: list[SlideMeta] = []
     for i, slide in enumerate(prs.slides, start=1):
         quiz, notes_html = _quiz_or_notes(slide, i, warnings)
+        activity = _activity_ref(slide, i, warnings)
         slides.append(
             SlideMeta(
                 index=i,
@@ -62,6 +66,7 @@ def extract(pptx_path: Path) -> Deck:
                     id_to_index, part_to_index, warnings,
                 ),
                 quiz=quiz,
+                activity=activity,
             )
         )
 
@@ -104,7 +109,7 @@ def _notes_html(slide) -> str | None:
     if tf is None:
         return None
     paragraphs = [p.text.strip() for p in tf.paragraphs]
-    paragraphs = [p for p in paragraphs if p]
+    paragraphs = [p for p in paragraphs if p and not _ACTIVITY_RE.match(p)]
     if not paragraphs:
         return None
     return "".join(f"<p>{html.escape(p)}</p>" for p in paragraphs)
@@ -174,7 +179,47 @@ def _notes_text(slide) -> str | None:
     if not slide.has_notes_slide:
         return None
     tf = slide.notes_slide.notes_text_frame
-    return tf.text if tf is not None else None
+    if tf is None:
+        return None
+    # las citas [actividad: …] no son parte del quiz ni de las notas
+    lines = [ln for ln in tf.text.splitlines() if not _ACTIVITY_RE.match(ln.strip())]
+    return "\n".join(lines)
+
+
+# [actividad: alias] o [actividad: alias | Título del botón]
+_ACTIVITY_RE = re.compile(
+    r"^\[\s*actividad\s*:\s*([^\]|]+?)\s*(?:\|\s*([^\]]*?)\s*)?\]$", re.IGNORECASE
+)
+
+
+def normalize_alias(raw: str) -> str:
+    """'Sprint Eventos' → 'sprint-eventos' (sin tildes, kebab-case)."""
+    text = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _activity_ref(slide, index: int, warnings: list[str]) -> ActivityRef | None:
+    """Busca una línea [actividad: alias | título] en las notas (máx. 1)."""
+    if not slide.has_notes_slide:
+        return None
+    tf = slide.notes_slide.notes_text_frame
+    if tf is None:
+        return None
+    found: ActivityRef | None = None
+    for line in tf.text.splitlines():
+        m = _ACTIVITY_RE.match(line.strip())
+        if not m:
+            continue
+        alias = normalize_alias(m.group(1))
+        if not alias:
+            warnings.append(f"Slide {index}: [actividad] sin alias válido; se ignora")
+            continue
+        if found:
+            warnings.append(f"Slide {index}: solo se admite 1 actividad por lámina; "
+                            f"se ignora '{alias}'")
+            continue
+        found = ActivityRef(alias=alias, title=(m.group(2) or "").strip() or None)
+    return found
 
 
 def _parse_quiz(text: str) -> tuple[Quiz | None, str | None]:

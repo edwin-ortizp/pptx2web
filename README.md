@@ -204,6 +204,51 @@ Alternativa en el config (reemplaza al quiz de notas de esa lámina):
 ]
 ```
 
+### Actividades interactivas
+
+Artefactos HTML (p. ej. generados con Claude) que se abren dentro del player,
+desde un botón en la lámina. Son **opcionales**: nunca bloquean la navegación.
+
+1. **Cítala en las notas** de la lámina (puede convivir con notas normales y
+   con un `[quiz]`; la línea no se publica como nota):
+
+   ```
+   [actividad: sprint-eventos]
+   [actividad: sprint-eventos | Ordena los eventos del Sprint]   ← texto del botón
+   ```
+
+   El alias se normaliza a kebab-case. Máximo una actividad por lámina.
+
+2. **Pon el archivo** en `actividades/sprint-eventos.html` junto al `.pptx`
+   (se asocia solo) o regístralo en el config (ruta relativa al config o URL):
+
+   ```json
+   "activities": {
+     "sprint-eventos": { "file": "otra/carpeta/sprint.html", "title": "Ordena los eventos" },
+     "prompt-lab": { "file": "https://mi-plataforma.com/prompt-lab.html" }
+   }
+   ```
+
+3. En el asistente, el paso **Actividades** muestra cada alias con su estado
+   (✓ lista, ✕ falta archivo, ⚠ registrada pero no citada), permite
+   seleccionar el HTML y probarlo.
+
+**Actualizar una actividad no exige reconvertir.** El PowerPoint solo guarda
+el alias; el archivo se resuelve en `config.json`. Las actividades se publican
+como `activities/<alias>.html` (nombre estable) y `config.json` guarda una
+`version` para evitar caché vieja. Para actualizar:
+
+- En el asistente: **Actualizar actividades del material publicado** (copia
+  los HTML y reescribe el config en segundos, sin PowerPoint), o
+- a mano: reemplaza `activities/<alias>.html` y cambia su `version` en
+  `config.json`, o usa una URL que se actualiza en su propio hosting.
+
+Solo citar una actividad en una lámina nueva requiere volver a publicar.
+
+Recomendado: que cada actividad sea un único HTML autocontenido. Si quiere
+marcarse como completada en el botón, puede avisar al player con
+`parent.postMessage({ type: "activity:complete" }, "*")`.
+
 ### Puntero láser
 
 Se activa con la tecla `L` o el botón de la barra (apagado por defecto). El

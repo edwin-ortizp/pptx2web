@@ -81,6 +81,7 @@
     if (drawMode) buildSwatches();
     renderLinks(current);
     renderQuiz(current);
+    renderActivity(current);
     updateChrome();
     fitSlideBox();
   }
@@ -237,6 +238,7 @@
     renderMedia(i);
     renderLinks(i);
     renderQuiz(i);
+    renderActivity(i);
     redrawAnnotations();
     updateChrome();
     preloadAround(i);
@@ -511,6 +513,123 @@
       card.style.setProperty("--quiz-fs", `${fs}px`);
     }
   }
+
+  // ─────────────────── actividades interactivas ───────────────────
+
+  // El manifest solo trae el alias; archivo, título y versión vienen del
+  // config (config.json editable): actualizar una actividad no exige
+  // reconvertir. Son opcionales: nunca bloquean la navegación.
+  const activityState = new Map(); // alias → "visited" | "done"
+  let activityOverlayEl = null;
+
+  function activityFor(i) {
+    const ref = slides[i].activity;
+    if (!ref) return null;
+    const entry = (config.activities || {})[ref.alias];
+    if (!entry || !entry.src) return null; // citada pero sin archivo
+    return {
+      alias: ref.alias,
+      title: ref.title || entry.title || "Hacer actividad",
+      src: entry.version ? `${entry.src}?v=${encodeURIComponent(entry.version)}` : entry.src,
+    };
+  }
+
+  function activityOpen() {
+    return !!activityOverlayEl;
+  }
+
+  function renderActivity(i) {
+    closeActivity();
+    const layer = $("activity-layer");
+    layer.innerHTML = "";
+    const act = activityFor(i);
+    layer.hidden = !act;
+    if (!act) return;
+
+    const state = activityState.get(act.alias);
+    const toggle = document.createElement("button");
+    toggle.className = "activity-toggle";
+    if (state) toggle.classList.add(state);
+    toggle.type = "button";
+    toggle.textContent = state === "done" ? `${act.title} · completada ✓`
+      : state === "visited" ? `${act.title} · volver ✓` : act.title;
+    toggle.addEventListener("click", () => openActivity(i));
+    layer.appendChild(toggle);
+  }
+
+  function openActivity(i) {
+    const act = activityFor(i);
+    if (!act) return;
+    closeActivity();
+    closeQuiz();
+
+    const overlay = document.createElement("div");
+    overlay.className = "activity-overlay";
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeActivity();
+    });
+
+    const frameBox = document.createElement("div");
+    frameBox.className = "activity-box";
+
+    const bar = document.createElement("div");
+    bar.className = "activity-bar";
+    const title = document.createElement("span");
+    title.className = "activity-title";
+    title.textContent = act.title;
+    const close = document.createElement("button");
+    close.className = "activity-close";
+    close.type = "button";
+    close.textContent = "Volver a la lámina ✕";
+    close.addEventListener("click", closeActivity);
+    bar.append(title, close);
+
+    // carga perezosa: el iframe solo existe mientras el panel está abierto
+    const frame = document.createElement("iframe");
+    frame.className = "activity-frame";
+    frame.title = act.title;
+    frame.src = act.src;
+    frame.setAttribute("sandbox",
+      "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads");
+    frame.setAttribute("allow", "fullscreen; clipboard-write");
+
+    frameBox.append(bar, frame);
+    overlay.appendChild(frameBox);
+    document.body.appendChild(overlay);
+    activityOverlayEl = overlay;
+    activityOverlayEl.dataset.alias = act.alias;
+    if (!activityState.get(act.alias)) activityState.set(act.alias, "visited");
+    close.focus();
+  }
+
+  function closeActivity() {
+    if (!activityOverlayEl) return;
+    activityOverlayEl.remove();
+    activityOverlayEl = null;
+    renderActivityButton();
+  }
+
+  // refresca solo el botón (sin volver a cerrar/abrir nada)
+  function renderActivityButton() {
+    const btn = $("activity-layer").querySelector(".activity-toggle");
+    if (!btn) return;
+    const act = activityFor(current);
+    if (!act) return;
+    const state = activityState.get(act.alias);
+    btn.className = `activity-toggle ${state || ""}`.trim();
+    btn.textContent = state === "done" ? `${act.title} · completada ✓`
+      : state === "visited" ? `${act.title} · volver ✓` : act.title;
+  }
+
+  // Opcional: un artefacto puede avisar que terminó con
+  // parent.postMessage({ type: "activity:complete" }, "*")
+  window.addEventListener("message", (e) => {
+    if (!activityOverlayEl || !e.data || e.data.type !== "activity:complete") return;
+    const frame = activityOverlayEl.querySelector("iframe");
+    if (!frame || e.source !== frame.contentWindow) return;
+    activityState.set(activityOverlayEl.dataset.alias, "done");
+    renderActivityButton();
+  });
 
   // ─────────────────── sidebar de miniaturas ───────────────────
 
@@ -925,6 +1044,11 @@
       return; // el resto lo gestiona el input
     }
     if (e.target instanceof HTMLInputElement) return;
+    // con una actividad abierta el teclado es de la actividad: solo Esc cierra
+    if (activityOpen()) {
+      if (e.key === "Escape") closeActivity();
+      return;
+    }
     // Space sobre un botón enfocado (ej. opción de quiz) activa el botón,
     // no avanza de lámina
     if (e.key === " " && e.target instanceof HTMLButtonElement) return;
@@ -939,7 +1063,8 @@
       case "l": case "L": toggleLaser(); break;
       case "d": case "D": toggleDraw(); break;
       case "Escape":
-        if (quizOpen()) closeQuiz();
+        if (activityOpen()) closeActivity();
+        else if (quizOpen()) closeQuiz();
         else if (drawMode) setDraw(false);
         else if (laserOn) setLaser(false);
         else if (document.fullscreenElement) document.exitFullscreen();

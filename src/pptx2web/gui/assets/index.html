@@ -31,9 +31,10 @@
       <li class="step" data-step="1"><span class="step-n">2</span><span class="step-l">Apariencia</span></li>
       <li class="step" data-step="2"><span class="step-n">3</span><span class="step-l">Secciones</span></li>
       <li class="step" data-step="3"><span class="step-n">4</span><span class="step-l">Quizzes</span></li>
-      <li class="step" data-step="4"><span class="step-n">5</span><span class="step-l">Enlaces</span></li>
-      <li class="step" data-step="5"><span class="step-n">6</span><span class="step-l">Curso</span></li>
-      <li class="step" data-step="6"><span class="step-n">7</span><span class="step-l">Publicar</span></li>
+      <li class="step" data-step="4"><span class="step-n">5</span><span class="step-l">Actividades</span></li>
+      <li class="step" data-step="5"><span class="step-n">6</span><span class="step-l">Enlaces</span></li>
+      <li class="step" data-step="6"><span class="step-n">7</span><span class="step-l">Curso</span></li>
+      <li class="step" data-step="7"><span class="step-n">8</span><span class="step-l">Publicar</span></li>
     </ol>
     <div class="rail-foot" id="deck-badge" hidden>
       <div class="badge-title" id="badge-title"></div>
@@ -133,15 +134,30 @@
         <div id="quizzes-list"></div>
       </section>
 
-      <!-- Paso 5: Enlaces (solo lectura) -->
+      <!-- Paso 5: Actividades interactivas -->
       <section class="pane" data-pane="4">
+        <h1 class="pane-title">Actividades</h1>
+        <p class="pane-sub">Artefactos HTML citados en las notas con <code>[actividad: alias]</code>.
+          Se abren desde un botón en la lámina y son opcionales (no bloquean avanzar).</p>
+        <div class="act-summary" id="activities-summary"></div>
+        <div id="activities-list"></div>
+        <div class="notice" id="activities-msg" hidden></div>
+        <div class="act-update">
+          <button class="ghost-btn" id="update-activities">Actualizar actividades del material publicado</button>
+          <p class="seg-help">Copia de nuevo los HTML y el <code>config.json</code> a la carpeta ya publicada,
+            sin volver a renderizar PowerPoint. Úsalo cuando solo cambiaste un artefacto.</p>
+        </div>
+      </section>
+
+      <!-- Paso 6: Enlaces (solo lectura) -->
+      <section class="pane" data-pane="5">
         <h1 class="pane-title">Enlaces</h1>
         <p class="pane-sub">Hipervínculos detectados en la presentación. Solo lectura — para revisar antes de publicar.</p>
         <div id="links-list"></div>
       </section>
 
       <!-- Paso 6: Curso -->
-      <section class="pane" data-pane="5">
+      <section class="pane" data-pane="6">
         <h1 class="pane-title">Datos del curso</h1>
         <p class="pane-sub">Nombre y logo que aparecen en el panel del player.</p>
         <div class="field">
@@ -159,7 +175,7 @@
       </section>
 
       <!-- Paso 7: Publicar -->
-      <section class="pane" data-pane="6">
+      <section class="pane" data-pane="7">
         <h1 class="pane-title">Publicar</h1>
         <p class="pane-sub">Opciones de salida y conversión final.</p>
         <div class="grid2">

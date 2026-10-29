@@ -150,6 +150,7 @@ def resolve(
         "sections": sections,
         "links": _validate_links(cfg.get("links"), slide_count),
         "quizzes": _validate_quizzes(cfg.get("quizzes"), slide_count),
+        "activities": _validate_activities(cfg.get("activities")),
         "pointer": pointer,
         "pen": pen,
     }
@@ -276,6 +277,110 @@ def _validate_quizzes(quizzes, slide_count: int) -> list[dict]:
             "feedbackKo": q.get("feedbackKo"),
         })
     return clean
+
+
+# Carpeta convencional junto al .pptx: `actividades/<alias>.html` se asocia
+# solo, sin registrar nada en el config.
+ACTIVITY_DIR = "actividades"
+
+
+def is_url(value: str) -> bool:
+    return value.lower().startswith(("http://", "https://"))
+
+
+def _validate_activities(activities) -> dict:
+    """Actividades interactivas: {alias: {file, title}}. `file` es una ruta
+    .html relativa al config o una URL https; si falta, se busca
+    `actividades/<alias>.html`."""
+    from .metadata import normalize_alias
+
+    if not activities:
+        return {}
+    if not isinstance(activities, dict):
+        raise ValidationError("'activities' debe ser un objeto {alias: {file, title}}")
+    clean: dict[str, dict] = {}
+    for raw_alias, entry in activities.items():
+        alias = normalize_alias(str(raw_alias))
+        if not alias:
+            raise ValidationError(f"activities: alias inválido '{raw_alias}'")
+        if isinstance(entry, str):
+            entry = {"file": entry}
+        if not isinstance(entry, dict):
+            raise ValidationError(f"activities.{alias}: debe ser un objeto {{file, title}}")
+        file = entry.get("file")
+        if file is not None:
+            file = str(file).strip()
+            if not is_url(file) and not file.lower().endswith((".html", ".htm")):
+                raise ValidationError(
+                    f"activities.{alias}.file: debe ser un .html o una URL http(s)"
+                )
+        clean[alias] = {
+            "file": file or None,
+            "title": entry.get("title") or None,
+            # src/version los escribe el packager al copiar; se conservan si
+            # vienen de un config.json ya publicado
+            "src": entry.get("src"),
+            "version": entry.get("version"),
+        }
+    return clean
+
+
+def find_activity_file(alias: str, entry: dict | None, base_dir: Path) -> str | Path | None:
+    """Resuelve el archivo de una actividad: URL (str), Path existente o None."""
+    file = (entry or {}).get("file")
+    if file:
+        if is_url(file):
+            return file
+        path = Path(file)
+        if not path.is_absolute():
+            path = base_dir / path
+        return path if path.is_file() else None
+    conventional = base_dir / ACTIVITY_DIR / f"{alias}.html"
+    return conventional if conventional.is_file() else None
+
+
+def activity_status(
+    cited: dict[str, list[int]], activities: dict, base_dir: Path
+) -> list[dict]:
+    """Estado de cada actividad para revisar antes de publicar.
+
+    `cited` = alias → láminas que lo citan. Estados: `ok` (citada y con
+    archivo), `missing_file` (citada sin archivo), `unused` (registrada pero
+    ninguna lámina la cita).
+    """
+    rows: list[dict] = []
+    for alias in sorted(set(cited) | set(activities)):
+        entry = activities.get(alias)
+        found = find_activity_file(alias, entry, base_dir)
+        slides = sorted(cited.get(alias, []))
+        if not slides:
+            status = "unused"
+        elif found is None:
+            status = "missing_file"
+        else:
+            status = "ok"
+        rows.append({
+            "alias": alias,
+            "slides": slides,
+            "title": (entry or {}).get("title"),
+            "file": (entry or {}).get("file"),
+            "resolved": str(found) if found is not None else None,
+            "auto": bool(found is not None and not (entry or {}).get("file")),
+            "status": status,
+        })
+    return rows
+
+
+def activity_warnings(rows: list[dict]) -> list[str]:
+    out = []
+    for r in rows:
+        where = ", ".join(str(n) for n in r["slides"])
+        if r["status"] == "missing_file":
+            out.append(f"Actividad '{r['alias']}' (lámina {where}) sin archivo: "
+                       f"regístrala en el config o crea {ACTIVITY_DIR}/{r['alias']}.html")
+        elif r["status"] == "unused":
+            out.append(f"Actividad '{r['alias']}' registrada pero ninguna lámina la cita")
+    return out
 
 
 def _slide_number(value, slide_count: int, where: str) -> int:

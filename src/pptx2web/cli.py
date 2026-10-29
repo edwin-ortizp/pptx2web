@@ -121,6 +121,10 @@ def _summary(summary) -> None:
     click.echo(f"Listo: {summary.out_dir}")
     click.echo(f"  Slides: {summary.slide_count}")
     click.echo(f"  Peso de imágenes: {summary.image_bytes / 1024 / 1024:.1f} MB")
+    if summary.activities:
+        ok = sum(1 for r in summary.activities if r["status"] == "ok")
+        cited = sum(1 for r in summary.activities if r["slides"])
+        click.echo(f"  Actividades: {ok}/{cited} listas")
     if summary.media_count:
         click.echo(f"  Media: {summary.media_count} archivo(s)")
     click.echo(f"  buildId: {summary.build_id}")

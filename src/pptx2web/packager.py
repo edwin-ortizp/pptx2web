@@ -52,6 +52,9 @@ def build_manifest(
                 ],
                 "links": [link.as_dict() for link in meta.links],
                 "quiz": meta.quiz.as_dict() if meta.quiz else None,
+                # solo el alias: el archivo se resuelve en config.json para
+                # poder actualizar actividades sin reconvertir
+                "activity": meta.activity.as_dict() if meta.activity else None,
             }
         )
     return {
@@ -98,6 +101,7 @@ def package(
     css_name = _copy_hashed(src / "player.css", out_dir)
 
     logo_name = _copy_logo(player_config, config_dir, out_dir)
+    activity_names = _copy_activities(manifest, player_config, config_dir, out_dir)
 
     # config.json en la raíz: editable post-export sin reconvertir (el player
     # lo lee en segundo plano por HTTP y sobrescribe lo embebido)
@@ -116,7 +120,7 @@ def package(
     index_path = out_dir / "index.html"
     index_path.write_text(html_out, encoding="utf-8")
 
-    keep = {js_name, css_name}
+    keep = {js_name, css_name, *activity_names}
     if logo_name:
         keep.add(logo_name)
     _prune_orphans(manifest, out_dir, keep=keep)
@@ -157,6 +161,85 @@ def _copy_logo(
     return name
 
 
+def cited_activities(manifest: dict) -> dict[str, list[int]]:
+    """alias → láminas que lo citan, según el manifest."""
+    cited: dict[str, list[int]] = {}
+    for s in manifest["slides"]:
+        act = s.get("activity")
+        if act:
+            cited.setdefault(act["alias"], []).append(s["index"])
+    return cited
+
+
+def _copy_activities(
+    manifest: dict, player_config: dict, config_dir: Path | None, out_dir: Path
+) -> set[str]:
+    """Copia cada actividad a `activities/<alias>.html` con nombre ESTABLE (sin
+    hash): para actualizar una actividad basta reemplazar ese archivo. La
+    `version` (hash del contenido) va en config.json como cache-buster.
+    Reescribe player_config["activities"] a {alias: {src, title, version}}."""
+    from .config import find_activity_file
+
+    base = config_dir or Path.cwd()
+    registered = player_config.get("activities") or {}
+    resolved: dict[str, dict] = {}
+    names: set[str] = set()
+    for alias in sorted(set(cited_activities(manifest)) | set(registered)):
+        entry = registered.get(alias) or {}
+        found = find_activity_file(alias, entry, base)
+        if found is None:
+            continue
+        if isinstance(found, str):  # URL externa: se actualiza en su hosting
+            resolved[alias] = {"src": found, "title": entry.get("title"), "version": None}
+            continue
+        folder = out_dir / "activities"
+        folder.mkdir(exist_ok=True)
+        name = f"activities/{alias}.html"
+        shutil.copy2(found, out_dir / name)
+        resolved[alias] = {
+            "src": name,
+            "title": entry.get("title"),
+            "version": content_hash(found),
+        }
+        names.add(name)
+    player_config["activities"] = resolved
+    return names
+
+
+def update_activities(out_dir: Path, deck_config: dict | None, config_dir: Path) -> dict:
+    """Flujo rápido: recopia las actividades y reescribe config.json (y el
+    config embebido en index.html) de una carpeta ya publicada, sin
+    renderizar PowerPoint. Devuelve el playerConfig resultante."""
+    from .config import resolve
+
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    current = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    cfg = dict(deck_config or {})
+    player_config, _ = resolve(cfg, cfg.get("theme"), manifest["slideCount"])
+    # se respeta todo lo publicado (logo ya hasheado, etc.); solo cambian actividades
+    current["activities"] = player_config["activities"]
+    names = _copy_activities(manifest, current, config_dir, out_dir)
+
+    (out_dir / "config.json").write_text(
+        json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    index_path = out_dir / "index.html"
+    html_text = index_path.read_text(encoding="utf-8")
+    open_tag = '<script type="application/json" id="config">'
+    start = html_text.index(open_tag) + len(open_tag)
+    end = html_text.index("</script>", start)
+    index_path.write_text(
+        html_text[:start] + _inline_json(current) + html_text[end:], encoding="utf-8"
+    )
+
+    folder = out_dir / "activities"
+    if folder.is_dir():
+        for f in folder.iterdir():
+            if f.is_file() and f"activities/{f.name}" not in names:
+                f.unlink()
+    return current
+
+
 def _prune_orphans(manifest: dict, out_dir: Path, keep: set[str]) -> None:
     """Al republicar sobre la misma carpeta, elimina assets de versiones
     anteriores que el manifest actual ya no referencia."""
@@ -166,7 +249,7 @@ def _prune_orphans(manifest: dict, out_dir: Path, keep: set[str]) -> None:
         referenced.add(s["thumb"])
         referenced.update(m["src"] for m in s["media"])
 
-    for sub in ("slides", "thumbs", "media"):
+    for sub in ("slides", "thumbs", "media", "activities"):
         folder = out_dir / sub
         if not folder.is_dir():
             continue
